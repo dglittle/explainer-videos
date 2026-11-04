@@ -2,6 +2,7 @@
 
 - Upload: `node upload.js --file F.mp4 --title "..." --desc "$(cat desc.txt)" --privacy public` (logs to upload.log; prints VIDEO_ID)
 - Change metadata/privacy: `node update.js --id VIDEOID [--title T] [--descfile F] [--privacy private|unlisted|public]`
+- Link a video to this repo (once): `node add-repo-link.js VIDEOID FOLDER [--dry]` (backs up the old description first)
 - Check the token: `node upload.js --check`
 - Use node from ~/.nvm/versions/node/v22.13.1/bin.
 

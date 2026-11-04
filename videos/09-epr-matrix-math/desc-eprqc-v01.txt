@@ -1,0 +1,9 @@
+the human voice and face you see are real, and the idea and the direction are his: show how the EPR setup, a famous bit of quantum weirdness that really happens, turns into plain matrix math. but.. the wording of the script (which he read and approved), the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the setup: two qubits, Alice's and Bob's, both starting at 0, so the vector is (1, 0, 0, 0) over the states 00, 01, 10, 11. an H gate makes Alice's qubit 50/50, and a copy gate (CNOT) flips Bob's whenever Alice's is 1: now the vector is 1/√2 at 00 and 11. they carry their qubits far apart, and each presses one of three buttons, which turns their qubit by 0°, 22.5° or 45° (like a polarizer), then they look.
+
+the math: each gate is a 4×4 matrix, written right under its gate, and each result is written right under its matrix (Falk's layout for multiplying matrices by hand). the chance they see the same thing is the 00 and 11 numbers of the final vector, squared and added: 100% for the same button, 85.4% for neighboring buttons, 50% for top vs bottom, just like the real experiment with polarizers (cos² of the angle between).
+
+every number on screen is computed by the page that draws it, and checked.
+
+v0.1. still an attempt, to be improved upon.

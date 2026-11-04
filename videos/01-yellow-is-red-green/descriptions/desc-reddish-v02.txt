@@ -1,0 +1,5 @@
+the human voice you hear is real, and that human had a lot of input on the screenplay, but.. the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his notes, round after round.
+
+the idea: red and green light make yellow, but yellow doesn't look like red or green. lay the colors out as a square, with black, red, yellow and green at the corners. the usual fade from red to green goes around the top, through yellow, which is twice as bright as red or green. go straight across from red to green at the same brightness instead, and the middle is a dim olive, rgb(128, 128, 0), which (to me) actually looks like reddish-green.
+
+v0.2 (v0.1: https://youtu.be/9OENcy-O1X0). still an attempt, to be improved upon.

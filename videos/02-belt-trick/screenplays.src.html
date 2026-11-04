@@ -1,0 +1,141 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spinor v2: screenplay brainstorm</title>
+<style>
+body{font:16px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;max-width:860px;margin:40px auto;padding:0 20px;color:#222}
+h1{margin-bottom:0}.sub{color:#777;margin-top:4px}
+h2{margin-top:2.2em;border-bottom:1px solid #ddd;padding-bottom:4px}
+.box{background:#f6f8fa;border-left:4px solid #8a9;padding:10px 16px;margin:16px 0}
+.warn{border-left-color:#d9a43b;background:#fdf8ec}
+.sp{border:1px solid #ddd;border-radius:6px;padding:4px 18px 10px;margin:18px 0}
+.sp h3{margin:10px 0 2px}.meta{color:#777;font-size:14px;margin:0 0 8px}
+.shot{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;line-height:1.5;white-space:pre-wrap;background:#fafafa;padding:8px 12px;border-radius:4px}
+img{width:100%;border-radius:4px;display:block;margin:6px 0}
+small{color:#888}code{font-size:14px}
+</style></head><body>
+<h1>Spinor v2: screenplay brainstorm</h1>
+<p class="sub">Oct 19, 2026 · for "make a v2 of my spinor video, with a voice-over" · 5 short scripts</p>
+
+<div class="box"><b>In one breath:</b> v1 (<a href="https://youtu.be/Xs5VtU3XFWs">Spinor Belt Trick — 720° on a Chessboard</a>) is an <b>8-second silent loop</b>: 1080p60, the knight turns two full times clockwise in a single eased sweep, and the sheet balloons into a ball at 360° on the way. Nothing in it says "look, this is the halfway point", and that's the story v2 needs to tell. All five scripts build to the same beat: <b>freeze at 360°</b> ("the knight is back, but the sheet isn't"), <b>then keep going</b> ("same direction… and it's flat"). <b>My pick is ① "Twice is nothing"</b>. It's simple, about a minute long, and needs only the existing animation plus a pause at 360°.</div>
+
+<h2>0. What's there</h2>
+<p><b>v1, frames every ⅔ s</b> (0 → 720°):</p>
+<img src="data:image/jpeg;base64,__SHEET__" alt="v1 contact sheet">
+<p><b>Three looks already exist</b> in your page variants, rendered here at 0°, 180°, 360°, 540° and 720°. Top: the board (bloop.monster/disk, two pawns; v1 is the same thing with the knight). Middle: <code>spinor-rotation-board.html</code> (Mar 8, the newest), where the board is hidden and only two belts (red on the d-file, blue on the e-file) are drawn. Bottom: <code>human-ai/spinor.html</code>, just one row of the board, with the light squares marbled red.</p>
+<img src="data:image/jpeg;base64,__ALL__" alt="three variants at 0,180,360,540,720 degrees">
+<p><small>At 360° each belt makes a full loop over the top. That loop is Dirac's belt trick, and it's the 2-D board's secret seen one strip at a time.</small></p>
+
+<div class="box"><b>Facts I checked in the shader, so the voice-over can say them safely:</b><br>
+• The edge of the sheet never moves. The center square (the knight's) stays flat and just spins.<br>
+• Every point of the sheet stays the <i>same distance from the knight</i> the whole time. Each ring of the sheet is only ever rotated, about axes through the center. So the sheet <b>never cuts or passes through itself</b>. It's a real, physical motion, not a trick of the camera.<br>
+• At 360° every ring has been flipped all the way over (a full turn about the left-right axis). That's the ball. At 720° every ring is back exactly where it started, so the sheet is flat again.<br>
+• Direction: seen from above, the knight turns <b>clockwise</b>, matching v1's description.<br>
+• v1's easing (<code>t − sin(2πt)/2π</code>) is slowest at 0° and 720° and <i>fastest</i> at 360°. That's the opposite of what a voice-over wants, so v2 will retime it (render.js-style time-warp to your recorded voice).</div>
+
+<h2>1. Five scripts</h2>
+
+<div class="sp"><h3>① Twice is nothing ★ <small>my pick</small></h3>
+<p class="meta">~55 s · board + knight, existing animation, pause at 360° · easiest to make</p>
+<div class="shot">0:00  Flat board, knight in the middle. Slow camera drift.
+      VO: "This knight is standing on a stretchy sheet,
+           and the edges of the sheet are pinned down."
+0:06  The knight's square turns a little clockwise; the rubber nearby swirls.
+      VO: "I'm going to turn the knight clockwise,
+           and let the sheet around it follow along."
+0:13  VO: "No cutting, and the sheet never passes through itself."
+0:17  Turning. Swirl grows, sheet rises.
+      VO: "Here's one full turn."
+0:22  360°: the ball. FREEZE. Camera orbits slowly around it.
+      VO: "The knight is back where it started.
+           But the sheet isn't. It's wrapped all the way around."
+0:31  VO: "And you can't smooth it back out
+           without turning the knight back the other way."
+0:36  Beat. Then it resumes, same direction.
+      VO: "So let's turn it again. Same direction."
+0:42  540°: the swirl winds down.
+0:46  720°: flat. Hold.
+      VO: "Two full turns, and it's completely back to normal."
+0:51  VO: "Things that work like this are called spinors.
+           Turn one once and it's tangled. Turn it twice and it's free."
+0:55  End (or loop the 8 s v1 under the end card).</div>
+<p><small>Note: "you can't smooth it back out" is the one claim we can't <i>show</i> with this animation. It's true (a single full turn can't be undone without unturning; that's the topology), but if you'd rather only say what's on screen, cut that line. ④ shows it instead.</small></p></div>
+
+<div class="sp"><h3>② Try it with your hand <small>(practical, viewer participation)</small></h3>
+<p class="meta">~60 s · board + knight · optional: a 5-second phone clip of your own arm doing the plate trick</p>
+<div class="shot">0:00  Flat board, knight.
+      VO: "Hold your hand out flat, palm up,
+           like you're carrying a plate."
+0:06  VO: "Now turn it clockwise, all the way around,
+           without letting go of the plate."
+0:12  (optional clip: your arm, twisted, elbow up)
+      VO: "One turn, and your arm is all twisted up."
+0:17  The knight turns once, synced: board climbs to the ball at 360°. Freeze.
+      VO: "That's this. The knight is your hand,
+           and the sheet is your arm, from fingers to shoulder."
+0:27  VO: "Now keep going. Same direction. Elbow goes over the top."
+0:32  Knight continues to 720°; the sheet unwinds.
+      (optional clip: arm comes free)
+0:40  Flat.
+      VO: "Two turns, and you're untangled.
+           Your shoulder never moved, and neither did the edge of the board."
+0:50  VO: "One turn tangles. Two turns don't.
+           Physicists call that a spinor."</div></div>
+
+<div class="sp"><h3>③ One strip at a time <small>(belt trick: board → belts → board)</small></h3>
+<p class="meta">~70 s · uses all three looks; needs a crossfade from board to belts (new work, but both are already drawn by the same deform code)</p>
+<div class="shot">0:00  Full board, knight turns once to 360°: the ball. Hold.
+      VO: "Turn this knight once, and the board wraps up into a ball."
+0:08  VO: "To see why, let's look at just two strips of it."
+0:12  Board fades away except the d- and e-files → the red and blue belts,
+      still at 360°: two loops over the top.
+      VO: "Each strip runs from one edge, under the knight, to the other edge."
+0:20  Rewind to 0°, then play to 360° with only the belts.
+      VO: "One turn puts a full loop in each belt.
+           And you can't get rid of a loop by just pulling on the ends."
+0:32  Continue to 720°. The loops swing over the knight and come undone.
+      VO: "But a second turn, same direction, and the loops slide right off."
+0:42  Flat belts. VO: "This is Dirac's belt trick."
+0:46  Fade the whole board back in, play the full 720° again.
+      VO: "And the board is just every strip doing it at once."
+0:58  Flat. VO: "Twice around is the same as not turning at all."</div>
+<p><small>This one teaches the most. It's also the one where the knight stops being the star, so it may suit two pawns (red + blue, one per belt, as on the board page) better.</small></p></div>
+
+<div class="sp"><h3>④ Can you undo one turn? <small>(the dare)</small></h3>
+<p class="meta">~60 s · board + knight; needs forward + backward playback</p>
+<div class="shot">0:00  Flat. VO: "Here's a puzzle. I turn this knight once, clockwise."
+0:05  Play to 360°: the ball.
+      VO: "Now flatten the sheet out.
+           You can stretch it and bend it any way you like,
+           but the knight has to stay facing forward."
+0:15  Play backward to 0° fast. Red X stamp.
+      VO: "Turning it back doesn't count."
+0:19  Back to 360° again. VO: "It turns out there's no way to do it."
+0:24  Beat. VO: "But here's the weird part.
+           Turn it once more…"
+0:30  Play 360° → 720°. Flat.
+      VO: "…and now it flattens out by itself."
+0:38  VO: "So one turn is a knot, and two turns are no knot.
+           Which means twice around isn't just 'once, twice'.
+           It's a whole different kind of around."
+0:50  VO: "Electrons live in that second kind.
+           Turn one around once and it's flipped.
+           It takes two turns to bring it all the way home."</div>
+<p><small>The electron line is the standard popular statement (the quantum state picks up a minus sign at 360°). Keep it, or drop it if you'd rather not make physics claims.</small></p></div>
+
+<div class="sp"><h3>⑤ 15-second short <small>(vertical, loops)</small></h3>
+<p class="meta">~15 s · 1080×1920 crop of the board, camera a bit closer · cheapest</p>
+<div class="shot">0:00  Flat. VO: "Turn it once."
+0:04  360°: the ball. VO: "Tangled."
+0:06  VO: "Turn it again. Same way."
+0:11  720°: flat. VO: "Free."
+0:13  Loop seamlessly back to 0:00.</div></div>
+
+<h2>2. Things to decide</h2>
+<div class="box warn">
+• <b>Knight or pawns?</b> I'd use the knight: it has a face, so "back where it started" reads at a glance. The 85 MB mesh only costs anything on the web, not in a render.<br>
+• <b>Which look?</b> Board only (①②④⑤), or board → belts (③)?<br>
+• <b>Length:</b> ~1 min (①–④) or the short (⑤), or both (⑤ comes almost free once ① exists).<br>
+• <b>Voice:</b> same booth flow as "seen reddish-green?": I'll build a scrubbable 1920×1080 anim.html from the shader (ENGINE START/END), a booth with start/middle/end frames per line, and a render.js that time-warps to your take.
+</div>
+<p><small>Sources: ~/Dropbox/sourcecode/quirks/spinor-rotation{,-mobile,-board}.html (the -mobile one has the knight + the frame exporter that made output.mp4), knight-data.js (85 MB), output.mp4 (8.0 s); ~/Dropbox/sourcecode/human-ai/spinor.html (the one-row version). Copies in ~/airport-sessions/spinor-v2/src.</small></p>
+</body></html>

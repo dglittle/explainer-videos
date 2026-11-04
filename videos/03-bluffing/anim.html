@@ -1,0 +1,407 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tiny Poker · bluffing is math · animation v0.1</title>
+<style>
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;max-width:1000px;margin:30px auto;padding:0 20px;color:#222}
+h1{margin:0}.sub{color:#777;margin:4px 0 18px}
+#box{background:#000;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px #0003}
+canvas{display:block;width:100%;aspect-ratio:16/9}
+#bar{display:flex;align-items:center;gap:12px;margin-top:10px}
+#play{width:84px;font-size:15px;padding:6px 0;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+#scrub{flex:1}
+#time{font:14px ui-monospace,Menlo,monospace;color:#555;width:120px;text-align:right}
+#cap{min-height:3.2em;margin:12px 0;font-size:19px;color:#333;font-style:italic}
+#chap button{font-size:13px;margin:0 6px 6px 0;padding:3px 9px;border:1px solid #ccc;border-radius:12px;background:#f7f7f7;cursor:pointer}
+#chap button.on{background:#ffe9a8;border-color:#d9b24a}
+.note{color:#666;font-size:14px;border-top:1px solid #eee;margin-top:22px;padding-top:10px}
+label{font-size:14px;color:#555}
+</style></head><body>
+<h1>Tiny Poker: bluffing is math</h1>
+<div class="sub">Animation v0.1, for your screenplay. Space = play/pause · ← → = 2 s back/forward · drag the scrubber. Every frame is drawn live. The timing is a guess (about 2.5 words a second); the final render stretches each line to fit your recorded voice.</div>
+<div id="box"><canvas id="c" width="1920" height="1080"></canvas></div>
+<div id="bar"><button id="play">▶ Play</button><input id="scrub" type="range" min="0" max="100" step="0.02" value="0"><span id="time">0.0</span></div>
+<div id="cap"></div>
+<div id="chap"></div>
+<label><input type="checkbox" id="capon"> subtitles inside the box</label>
+<div class="note" id="note"></div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+// Needs a 1920×1080 2-D canvas `cv` with context `ctx`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// ---------- the game (all numbers on screen are computed here, nothing typed in by hand) ----------
+// Cards 1-4, one each (12 deals). Stacks 4. SB posts 1, BB posts 2.
+// SB plan per card: 0 fold, 1 raise to 4, 2 call then fold to a raise, 3 call then call a raise.
+// BB plan per card: 0 check/fold, 1 check/call, 2 raise/fold, 3 raise/call  (vs a call: check|raise ; vs a raise: fold|call)
+const DEALS=[]; for(let a=1;a<=4;a++)for(let b=1;b<=4;b++)if(a!=b)DEALS.push([a,b]);
+const sd=(a,b,m)=>a>b?m:-m;
+function pay(s,o,a,b){ // SB net chips; s=SB plan for card a, o=BB plan for card b
+ if(s==0)return -1;
+ if(s==1)return (o&1)?sd(a,b,4):2;
+ if(o<2)return sd(a,b,2);
+ return s==2?-2:sd(a,b,4)}
+const dig=i=>[i>>6&3,i>>4&3,i>>2&3,i&3];          // strategy index -> plan for cards 1..4
+const idx=d=>d[0]*64+d[1]*16+d[2]*4+d[3];
+const A12=new Int16Array(65536);                    // payoff ×12 (sum over the 12 deals)
+for(let i=0;i<256;i++){const s=dig(i);for(let j=0;j<256;j++){const o=dig(j);let v=0;for(const[a,b]of DEALS)v+=pay(s[a-1],o[b-1],a,b);A12[i*256+j]=v}}
+// the LP solution (scipy HiGHS, solve.py; checked below): value 5/36
+const XS=[[idx([0,0,3,1]),1/3],[idx([1,0,3,1]),1/3],[idx([0,0,2,1]),1/3]];
+const YS=[[idx([0,0,1,3]),1/2],[idx([2,0,0,3]),1/3],[idx([0,0,0,3]),1/6]];
+const colPay=x=>{const c=new Float64Array(256);for(let i=0;i<256;i++)if(x[i])for(let j=0;j<256;j++)c[j]+=x[i]*A12[i*256+j]/12;return c};
+const XOPT=new Float64Array(256);XS.forEach(([i,p])=>XOPT[i]=p);
+const COPT=colPay(XOPT), VAL=Math.min(...COPT);   // = 5/36
+let _s=12345;const rnd=()=>(_s=(_s*16807)%2147483647)/2147483647;
+const XR=new Float64Array(256);{let t=0;for(let i=0;i<256;i++){XR[i]=Math.pow(rnd(),3);t+=XR[i]}for(let i=0;i<256;i++)XR[i]/=t}
+const YR=new Float64Array(256);{let t=0;for(let i=0;i<256;i++){YR[i]=Math.pow(rnd(),3);t+=YR[i]}for(let i=0;i<256;i++)YR[i]/=t}
+const CR=colPay(XR);let JR=0;for(let j=0;j<256;j++)if(CR[j]<CR[JR])JR=j;
+const EX_S=idx([1,0,3,1]), EX_B=idx([0,0,1,3]);    // the example pair (scene "one pair")
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+const SCRIPT=[
+['is bluffing',"Is bluffing in poker actually a good idea, mathematically? Or is it just psychology?",0],
+['tiny version',"Let's find out, with a tiny version of poker that's small enough to solve exactly.",0.3],
+['one through four',"There are four cards, one through four. Each player gets one card, and the higher card wins.",0.6],
+['each player has four',"Each player has four chips.",0],
+['small blind of one',"The first player puts in a small blind of one chip, and the second player puts in a big blind of two chips.",0.6],
+['one more chip',"Now the small blind can fold, or call by putting in one more chip, or raise all-in, to four chips.",0],
+['if the small blind raises',"If the small blind raises, the big blind can fold or call.",0],
+['if the small blind calls',"If the small blind calls, the big blind can check, and we see who wins, or it can raise all-in, and then the small blind can fold or call.",0],
+['whole game',"And that's the whole game. At the end of each branch, we can write how many chips the small blind wins or loses.",1.2],
+['plan for',"Now, a strategy is a plan for what to do with each card you might get.",0],
+['four to the fourth',"The small blind has four plans for each card: fold, raise, call and then fold, or call and then call. Four choices for each of four cards is four to the fourth, or 256 strategies.",0],
+['big blind also',"The big blind also has two decisions for each card, with two options each, so also 256 strategies.",0.5],
+['twelve ways',"If we pick a strategy for each player, we can work out the average payoff by playing out all twelve ways the cards can be dealt.",2.5],
+['payoff matrix',"Doing that for every pair of strategies gives us a 256 by 256 payoff matrix. Green is good for the small blind, and red is bad.",1.5],
+['have to pick',"Now, the small blind doesn't have to pick just one strategy. It can choose a probability for each one: a vector of 256 weights that add up to one.",0],
+['times the matrix',"The big blind does the same, and the small blind's average payoff is x, times the matrix, times y.",0],
+['pessimistic',"Let's be pessimistic, and assume the big blind knows our weights, and picks its best response.",1],
+['linear program',"Then we want the weights that make our worst case as good as possible. That's a linear program: maximize v, so that every column gives us at least v.",0.8],
+['just three',"When we solve it, out of 256 strategies, just three get used, each one third of the time.",1],
+['five thirty-sixths',"And no matter what the big blind does, the small blind wins at least five thirty-sixths of a chip per hand, on average.",0.8],
+['human strategy',"Let's turn that into a human strategy. With a four, always raise. With a three, call, and if the big blind raises, call two thirds of the time. With a two, fold.",0],
+['worst card',"And with a one, the worst card, fold two thirds of the time, but one third of the time, raise all-in. That's a bluff!",0.8],
+['bluffs too',"The big blind bluffs too. With a one, if the small blind just calls, it raises one third of the time.",0.8],
+['why one third',"But why one third? Imagine you're the big blind, holding a three, and the small blind raises.",0],
+['with every four',"The small blind raises with every four, and with a third of its ones. So a quarter of its raises are bluffs.",0.5],
+['if you fold',"If you fold, you lose two chips. If you call, you win four chips a quarter of the time, and lose four chips three quarters of the time. That's also losing two, on average.",0],
+["can't tell","So calling and folding are equally good. The bluffs are exactly frequent enough that the big blind can't tell what to do.",0.8],
+['never bluffs',"If the small blind never bluffs, then a raise always means a four, so the big blind just folds, and the small blind's payoff drops to four thirty-sixths.",0.3],
+["isn't allowed","And if the big blind isn't allowed to bluff, the small blind's payoff jumps all the way up to twelve thirty-sixths.",0.8],
+["bluffing isn","So bluffing isn't just psychology. Even in this tiny game, the mathematically best strategy bluffs, with exactly the right frequency.",3]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+T+=0.5;
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const u=i=>cl((tt-S[i])/(E[i]-S[i]));                       // progress through line i
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d)=>ease((tt-E[i]-f)/d);                     // event f seconds after line i ends
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={bg:'#0d1620',sb:'#4da3ff',bb:'#ff9f43',pos:'#3ecf6e',neg:'#ff5c5c',gold:'#ffd166',txt:'#e8eef4',dim:'#7d8b99',line:'#2a3a4a',card:'#f7f3ea',ink:'#1b2533'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;ctx.save();ctx.globalAlpha*=a;ctx.font=`${wt} ${sz}px ${FONT}`;ctx.fillStyle=col;ctx.textAlign=al;ctx.textBaseline='middle';ctx.fillText(s,x,y);ctx.restore()}
+const tw=(s,sz,wt='')=>{ctx.save();ctx.font=`${wt} ${sz}px ${FONT}`;const w=ctx.measureText(s).width;ctx.restore();return w};
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
+function frac(n,d,x,y,sz,col=C.txt,wt='bold',a=1){ // stacked fraction centered at x,y
+ if(a<=0)return;const w=Math.max(tw(n,sz,wt),tw(d,sz,wt))+sz*0.2;
+ txt(n,x,y-sz*0.55,sz,col,'center',wt,a);txt(d,x,y+sz*0.6,sz,col,'center',wt,a);
+ ctx.save();ctx.globalAlpha*=a;ctx.fillStyle=col;ctx.fillRect(x-w/2,y-sz*0.05,w,Math.max(2,sz*0.08));ctx.restore();return w}
+// rich line: segments [text, color, weight] or {f:[n,d],c} fractions, laid out from x (al = left|center)
+function rich(segs,x,y,sz,al='center',a=1){if(a<=0)return;
+ const ws=segs.map(s=>s.f?Math.max(tw(s.f[0],sz*0.62,'bold'),tw(s.f[1],sz*0.62,'bold'))+sz*0.3:tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;
+ segs.forEach((s,i)=>{if(s.f)frac(s.f[0],s.f[1],X+ws[i]/2,y,sz*0.62,s.c||C.txt,'bold',a);else txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]})}
+function spade(x,y,s,col){ctx.save();ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x,y-s);
+ ctx.bezierCurveTo(x+s*0.2,y-s*0.6,x+s*1.05,y-s*0.2,x+s*0.75,y+s*0.35);ctx.bezierCurveTo(x+s*0.5,y+s*0.7,x+s*0.15,y+s*0.5,x,y+s*0.2);
+ ctx.bezierCurveTo(x-s*0.15,y+s*0.5,x-s*0.5,y+s*0.7,x-s*0.75,y+s*0.35);ctx.bezierCurveTo(x-s*1.05,y-s*0.2,x-s*0.2,y-s*0.6,x,y-s);ctx.fill();
+ ctx.beginPath();ctx.moveTo(x,y+s*0.1);ctx.lineTo(x+s*0.3,y+s*0.9);ctx.lineTo(x-s*0.3,y+s*0.9);ctx.fill();ctx.restore()}
+// playing card centered at x,y, height h; n=1..4; flip: 1 face up, 0 face down (turns through edge-on); glow color
+function card(x,y,h,n,{flip=1,rot=0,glow=null,a=1,dim=0}={}){if(a<=0)return;const w=h*0.7;ctx.save();ctx.globalAlpha*=a;ctx.translate(x,y);ctx.rotate(rot);
+ const sx=Math.abs(Math.cos((1-flip)*Math.PI));ctx.scale(Math.max(0.02,sx),1);const up=flip>0.5;
+ if(glow){ctx.shadowColor=glow;ctx.shadowBlur=h*0.35}else{ctx.shadowColor='#0008';ctx.shadowBlur=h*0.08;ctx.shadowOffsetY=h*0.03}
+ rr(-w/2,-h/2,w,h,h*0.07);ctx.fillStyle=up?C.card:'#28466e';ctx.fill();ctx.shadowColor='transparent';
+ if(up){ctx.fillStyle=C.ink;ctx.font=`bold ${h*0.17}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(n,-w/2+h*0.11,-h/2+h*0.12);ctx.save();ctx.rotate(Math.PI);ctx.fillText(n,-w/2+h*0.11,-h/2+h*0.12);ctx.restore();
+  const P={1:[[0,0]],2:[[0,-.25],[0,.25]],3:[[0,-.28],[0,0],[0,.28]],4:[[-.13,-.22],[.13,-.22],[-.13,.22],[.13,.22]]}[n];
+  for(const[px,py]of P)spade(px*h,py*h,n==1?h*0.16:h*0.085,C.ink)}
+ else{ctx.strokeStyle='#ffffff40';ctx.lineWidth=h*0.012;rr(-w/2+h*0.06,-h/2+h*0.06,w-h*0.12,h-h*0.12,h*0.04);ctx.stroke();
+  ctx.save();ctx.clip();for(let k=-10;k<10;k++){ctx.beginPath();ctx.moveTo(k*h*0.08-h,-h);ctx.lineTo(k*h*0.08+h,h);ctx.stroke()}ctx.restore()}
+ if(dim>0){rr(-w/2,-h/2,w,h,h*0.07);ctx.fillStyle=`rgba(13,22,32,${dim*0.75})`;ctx.fill()}
+ ctx.restore()}
+function chip(x,y,r,col,a=1){if(a<=0)return;ctx.save();ctx.globalAlpha*=a;ctx.shadowColor='#0009';ctx.shadowBlur=r*0.3;ctx.shadowOffsetY=r*0.12;
+ ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=col;ctx.fill();ctx.shadowColor='transparent';
+ ctx.strokeStyle='#fff';ctx.lineWidth=r*0.22;for(let k=0;k<6;k++){ctx.beginPath();ctx.arc(x,y,r*0.86,k*Math.PI/3,k*Math.PI/3+0.35);ctx.stroke()}
+ ctx.beginPath();ctx.arc(x,y,r*0.55,0,7);ctx.strokeStyle='#ffffff88';ctx.lineWidth=r*0.07;ctx.stroke();ctx.restore()}
+function pill(s,x,y,w,h,{on=0,col=C.sb,a=1,sz=26}={}){if(a<=0)return;ctx.save();ctx.globalAlpha*=a;rr(x,y,w,h,h/2);
+ ctx.fillStyle=on>0?mix('#1a2633',col,on*0.9):'#1a2633';ctx.fill();ctx.strokeStyle=on>0?col:C.line;ctx.lineWidth=2;ctx.stroke();ctx.restore();
+ txt(s,x+w/2,y+h/2+1,sz,on>0.5?'#08121c':C.dim,'center',on>0.5?'bold':'',a)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+const valCol=v=>v>0?C.pos:v<0?C.neg:C.dim, sgn=v=>v>0?'+'+v:v<0?'−'+(-v):'0';
+function heading(s,a=1,y=80,col=C.txt){txt(s,W/2,y,52,col,'center','bold',a)}
+function arrow(x1,y1,x2,y2,col,a=1,lw=4){if(a<=0)return;ctx.save();ctx.globalAlpha*=a;ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=lw;
+ ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();const g=Math.atan2(y2-y1,x2-x1);
+ ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-18*Math.cos(g-0.4),y2-18*Math.sin(g-0.4));ctx.lineTo(x2-18*Math.cos(g+0.4),y2-18*Math.sin(g+0.4));ctx.fill();ctx.restore()}
+function stamp(s,x,y,sz,col,k){if(k<=0)return;const sc=1+2.2*(1-eo(k));ctx.save();ctx.globalAlpha*=cl(k*2.5);ctx.translate(x,y);ctx.rotate(-0.16);ctx.scale(sc,sc);
+ ctx.font=`bold ${sz}px ${FONT}`;const w=ctx.measureText(s).width+sz*0.7;rr(-w/2,-sz*0.75,w,sz*1.5,sz*0.25);ctx.lineWidth=sz*0.12;ctx.strokeStyle=col;ctx.stroke();
+ ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(s,0,sz*0.05);ctx.restore()}
+const SB_NAMES=['fold','raise','call → fold','call → call'], BB_NAMES=['check / fold','check / call','raise / fold','raise / call'];
+const planStr=(d,names)=>d.map((p,c)=>`${c+1}: ${names[p]}`).join('   ');
+// ---------- the heatmap image (256×256, one pixel per strategy pair) ----------
+let HEAT=null;
+function heat(){if(HEAT)return HEAT;HEAT=document.createElement('canvas');HEAT.width=HEAT.height=256;const g=HEAT.getContext('2d'),im=g.createImageData(256,256);
+ for(let k=0;k<65536;k++){const v=A12[k]/30, m=Math.min(1,Math.abs(v))**0.7, base=[22,32,44], tgt=v>0?[62,207,110]:[255,92,92];
+  for(let q=0;q<3;q++)im.data[k*4+q]=base[q]+(tgt[q]-base[q])*m;im.data[k*4+3]=255}
+ g.putImageData(im,0,0);return HEAT}
+function drawHeat(x,y,s,reveal=1,a=1){if(a<=0)return;ctx.save();ctx.globalAlpha*=a;ctx.imageSmoothingEnabled=false;
+ const rows=Math.round(256*cl(reveal));if(rows>0)ctx.drawImage(heat(),0,0,256,rows,x,y,s,s*rows/256);
+ ctx.strokeStyle=C.line;ctx.lineWidth=2;ctx.strokeRect(x-1,y-1,s+2,s+2);ctx.restore()}
+// ---------- scenes ----------
+function scTitle(){
+ const k=eo((tt-0.2)/1.4);
+ for(let n=1;n<=4;n++)card(960+(n-2.5)*190,600+(1-k)*700+Math.abs(n-2.5)*18,300,n,{rot:(n-2.5)*0.1});
+ txt('Tiny Poker',W/2,200,130,C.txt,'center','bold',k);
+ txt('Is bluffing a good idea, mathematically?',W/2,900,52,C.gold,'center','',ev(0,0.05,0.8));
+ txt('4 cards · 4 chips · small enough to solve exactly',W/2,975,36,C.dim,'center','',ev(1,0.4,0.8))}
+function scTable(){
+ const i=LK('one through four'),j=LK('each player has four'),k=LK('small blind of one');
+ // players
+ const PX=[330,1590];
+ [['small blind','SB',C.sb],['big blind','BB',C.bb]].forEach(([n,s,c],p)=>{const x=PX[p],a=ev(i,0,0.6);
+  ctx.save();ctx.globalAlpha=a;ctx.beginPath();ctx.arc(x,200,62,0,7);ctx.fillStyle=c;ctx.fill();ctx.restore();
+  txt(s,x,202,46,'#08121c','center','bold',a);txt(n,x,300,40,c,'center','bold',a)});
+ // the four cards: row → deck → deal → flip
+ const g=ev(i,0.30,0.7), dl=ev(i,0.45,0.8), fl=ev(i,0.72,0.6), win=ev(i,0.88,0.5);
+ const deal={3:0,1:1};   // SB gets 3, BB gets 1
+ for(let n=4;n>=1;n--){
+  let x=lerp(960+(n-2.5)*200,960+(n-2.5)*4,g), y=lerp(560,560-(n-2.5)*4,g), f=1-g, h=250;
+  if(n in deal){x=lerp(x,PX[deal[n]]+(deal[n]?-1:1)*0,dl);y=lerp(y,560,dl);f=Math.max(f,fl);if(dl>0)h=lerp(250,280,dl)}
+  card(x,y,h,n,{flip:f,a:ev(i,0,0.6)*(n in deal?1:(1-0.6*fl)*(1-ev(k,0,0.6))),glow:(win>0&&n==3)?C.gold:null})}
+ txt('higher card wins',PX[0],745,40,C.gold,'center','bold',win);
+ // chips
+ const ca=ev(j,0.05,0.6), b1=ev(k,0.25,0.9), b2=ev(k,0.7,0.9);
+ for(let p=0;p<2;p++)for(let c=0;c<4;c++){let y=940-c*26;
+  const sx=PX[p]+(p?-170:170), cx=sx;let X=cx,Y=y;
+  // chips that move into the pot
+  const mv=p==0?(c==3?b1:0):(c>=2?b2:0);
+  if(mv>0){X=lerp(cx,p?1010:910,mv);Y=lerp(y,560+(p?(c-2):0)*-26+130,mv)}
+  chip(X,Y,44,p?C.bb:C.sb,ca*(mv>0?1:ev(j,0.05+c*0.1,0.5)))}
+ txt('4 chips',PX[0]+170,1020,32,C.dim,'center','',ca*(1-b1));txt('4 chips',PX[1]-170,1020,32,C.dim,'center','',ca*(1-b2));
+ txt('1',910,775,40,C.sb,'center','bold',b1);txt('2',1010,775,40,C.bb,'center','bold',b2);
+ txt('pot: 3',960,840,36,C.txt,'center','',b2*ev(k,0.85,0.5))}
+// game tree
+const TN={root:[960,150,'SB'],A:[300,410,'L',-1,'small blind folds'],B:[880,410,'BB'],C:[1580,410,'BB'],
+ Cf:[1400,680,'L',2,'big blind folds'],Cc:[1760,680,'L',4,'showdown'],Bk:[640,680,'L',2,'showdown'],D:[1100,680,'SB'],
+ Df:[900,930,'L',-2,'small blind folds'],Dc:[1300,930,'L',4,'showdown']};
+const TE=[['root','A','fold'],['root','B','call'],['root','C','raise to 4'],['C','Cf','fold'],['C','Cc','call'],['B','Bk','check'],['B','D','raise to 4'],['D','Df','fold'],['D','Dc','call']];
+function scTree(){
+ const a=LK('one more chip'),b=LK('if the small blind raises'),c=LK('if the small blind calls'),d=LK('whole game');
+ const show={root:ev(a,0,0.5),A:ev(a,0.1,0.6),B:ev(a,0.3,0.6),C:ev(a,0.65,0.6),Cf:ev(b,0.55,0.6),Cc:ev(b,0.85,0.5),Bk:ev(c,0.2,0.6),D:ev(c,0.55,0.6),Df:ev(c,0.82,0.5),Dc:ev(c,0.92,0.5)};
+ const vals=['A','Cf','Cc','Bk','Df','Dc'];const vk={};vals.forEach((n,q)=>vk[n]=ev(d,0.45+q*0.07,0.5));
+ for(const[p,q,l]of TE){const k=show[q];if(k<=0)continue;const[x1,y1]=TN[p],[x2,y2]=TN[q];
+  ctx.save();ctx.strokeStyle=TN[p][2]=='SB'?C.sb:C.bb;ctx.globalAlpha=0.8;ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(lerp(x1,x2,k),lerp(y1,y2,k));ctx.stroke();ctx.restore();
+  const mx=(x1+x2)/2,my=(y1+y2)/2;const w=tw(l,30,'bold')+28;
+  ctx.save();ctx.globalAlpha=k;rr(mx-w/2,my-24,w,48,24);ctx.fillStyle=C.bg;ctx.fill();ctx.restore();txt(l,mx,my,30,C.txt,'center','bold',k)}
+ for(const n in TN){const[x,y,ty,v,cap]=TN[n],k=show[n];if(k<=0)continue;
+  if(ty!='L'){ctx.save();ctx.globalAlpha=k;ctx.beginPath();ctx.arc(x,y,46*eo(k),0,7);ctx.fillStyle=ty=='SB'?C.sb:C.bb;ctx.fill();ctx.restore();txt(ty,x,y+2,34,'#08121c','center','bold',k)}
+  else{const q=vk[n];ctx.save();ctx.globalAlpha=k;rr(x-95,y-42,190,84,16);ctx.fillStyle='#1a2633';ctx.fill();ctx.strokeStyle=q>0?(cap=='showdown'?C.gold:valCol(v)):C.line;ctx.lineWidth=3;ctx.stroke();ctx.restore();
+   if(cap=='showdown'){rich([['+'+v,C.pos,'bold'],[' / ',C.dim],['−'+v,C.neg,'bold']],x,y,40,'center',q);txt('showdown: higher card wins',x,y+70,24,C.dim,'center','',q)}
+   else{txt(sgn(v),x,y,46,valCol(v),'center','bold',q);txt(cap,x,y+70,24,C.dim,'center','',q)}
+   txt('end',x,y,30,C.dim,'center','',k*(1-q))}}
+ txt('chips won by the small blind',1780,1040,30,C.dim,'right','',ev(d,0.4,0.6))}
+// strategies
+function scStrat(){
+ const a=LK('plan for'),b=LK('four to the fourth'),c=LK('big blind also');
+ const m=ev(c,0,0.8), LX=lerp(560,110,m);         // SB panel slides left when BB panel comes in
+ txt('small blind',LX+390,95,44,C.sb,'center','bold',ev(a,0,0.6));
+ txt('a strategy = a plan for every card',LX+390,150,30,C.dim,'center','',ev(a,0.2,0.6));
+ // cycling picks: change every 0.33 s during line b
+ const cyc=tt>S[b]+0.25*(E[b]-S[b])?Math.floor((Math.min(tt,E[b]+0.3)-S[b])*3):-1;
+ const pickS=r=>{if(cyc<0)return [1,0,3,1][r];let h=(cyc*7+r*13)*2654435761>>>0;return(h>>>8)%4};
+ for(let r=0;r<4;r++){const y=260+r*170,ra=ev(a,0.3+r*0.12,0.5);card(LX+50,y,130,r+1,{a:ra});
+  const p=pickS(r);for(let o=0;o<4;o++){const w=o<2?120:180,x=LX+130+[0,135,270,465][o];pill(SB_NAMES[o],x,y-30,w,60,{on:(p==o?1:0)*ra,col:C.sb,a:ra,sz:24})}}
+ const nk=ev(b,0.62,0.6);
+ rich([['4 × 4 × 4 × 4 = ',C.txt],['256',C.sb,'bold'],[' strategies',C.txt]],LX+390,960,46,'center',nk);
+ // BB panel
+ const BX=1000, bA=ev(c,0.15,0.6);
+ txt('big blind',BX+400,95,44,C.bb,'center','bold',bA);
+ txt('if called',BX+300,175,28,C.dim,'center','',bA);txt('if raised',BX+620,175,28,C.dim,'center','',bA);
+ const cyc2=tt>S[c]+0.35*(E[c]-S[c])?Math.floor((Math.min(tt,E[c]+0.4)-S[c])*3):-1;
+ for(let r=0;r<4;r++){const y=260+r*170,ra=ev(c,0.2+r*0.08,0.5);card(BX+50,y,130,r+1,{a:ra});
+  const h=cyc2<0?[0,0,1,3][r]:((cyc2*11+r*5)*2654435761>>>0)>>>9&3;
+  pill('check',BX+150,y-30,140,60,{on:(h<2?1:0)*ra,col:C.bb,a:ra,sz:24});pill('raise',BX+305,y-30,140,60,{on:(h>=2?1:0)*ra,col:C.bb,a:ra,sz:24});
+  pill('fold',BX+480,y-30,140,60,{on:(h&1?0:1)*ra,col:C.bb,a:ra,sz:24});pill('call',BX+635,y-30,140,60,{on:(h&1)*ra,col:C.bb,a:ra,sz:24})}
+ rich([['2 × 2 = 4 per card → 4⁴ = ',C.txt],['256',C.bb,'bold']],BX+400,960,46,'center',ev(c,0.6,0.6))}
+// one pair of strategies, all 12 deals
+function scPair(){
+ const a=LK('twelve ways'), sP=dig(EX_S), bP=dig(EX_B);
+ txt('small blind plays',140,95,30,C.sb,'left','bold',ev(a,0,0.5));txt(planStr(sP,SB_NAMES),420,95,30,C.txt,'left','',ev(a,0,0.5));
+ txt('big blind plays',140,150,30,C.bb,'left','bold',ev(a,0.08,0.5));txt(planStr(bP,BB_NAMES),420,150,30,C.txt,'left','',ev(a,0.08,0.5));
+ const GX=560,GY=300,CW=230,CH=150, ga=ev(a,0.15,0.5);
+ txt('big blind’s card',GX+2*CW,GY-50,30,C.bb,'center','bold',ga);txt('small blind’s card',GX-150,GY-50,30,C.sb,'center','bold',ga);
+ for(let q=0;q<4;q++){card(GX+q*CW+CW/2,GY,0,0,{a:0});txt(''+(q+1),GX+q*CW+CW/2,GY,40,C.bb,'center','bold',ga);txt(''+(q+1),GX-60,GY+70+q*CH,40,C.sb,'center','bold',ga)}
+ let n=0,tot=0;
+ for(let r=0;r<4;r++)for(let q=0;q<4;q++){const x=GX+q*CW,y=GY+30+r*CH;
+  ctx.save();ctx.globalAlpha=ga;rr(x+6,y+6,CW-12,CH-12,14);ctx.fillStyle=r==q?'#121c26':'#1a2633';ctx.fill();ctx.restore();
+  if(r==q){txt('—',x+CW/2,y+CH/2,30,C.line,'center','',ga);continue}
+  const k=ease((tt-(S[a]+0.3*(E[a]-S[a])+n*0.28))/0.4);n++;
+  const s=sP[r],o=bP[q],v=pay(s,o,r+1,q+1);if(k>0.5)tot+=v;
+  const path=s==0?'SB folds':s==1?((o&1)?'raise, call':'raise, fold'):(o<2?'call, check':(s==2?'call, raise, fold':'call, raise, call'));
+  txt(sgn(v),x+CW/2,y+CH/2-12,50,valCol(v),'center','bold',k);txt(path,x+CW/2,y+CH/2+38,22,C.dim,'center','',k)}
+ const fk=ease((tt-(S[a]+0.3*(E[a]-S[a])+12*0.28+0.3))/0.6);
+ rich([['total over the 12 deals: ',C.txt],[sgn(tot),valCol(tot),'bold'],['   average: ',C.txt],{f:[sgn(tot),'12'],c:valCol(tot)},[' chips per hand',C.txt]],W/2,GY+30+4*CH+60,40,'center',fk)}
+// payoff matrix + weights + best response (lines 'payoff matrix' .. 'pessimistic')
+function scMatrix(){
+ const a=LK('payoff matrix'),b=LK('have to pick'),c=LK('times the matrix'),d=LK('pessimistic');
+ const sh=ev(b,0,0.8), MS=lerp(800,768,sh), MX=lerp(560,760,sh), MY=lerp(170,200,sh);
+ const rev=ease((tt-S[a]-0.4)/((E[a]-S[a])+1.0)), cs=MS/256;
+ drawHeat(MX,MY,MS,rev);
+ {const la=ev(a,0,0.6)*(1-sh);if(la>0){ctx.save();ctx.translate(MX-40,MY+MS/2);ctx.rotate(-Math.PI/2);txt('← small blind’s 256 strategies',0,0,30,C.sb,'center','bold',la);ctx.restore()}}
+ txt('big blind’s 256 strategies →',MX+MS/2,MY-35,30,C.bb,'center','bold',ev(a,0,0.6)*(1-ev(c,0,0.5)));
+ // the example cell
+ const ek=ev(a,0,0.5)*(1-ev(a,0.5,0.6)),ex=MX+(EX_B+0.5)*cs,ey=MY+(EX_S+0.5)*cs;
+ if(ek>0){ctx.save();ctx.globalAlpha=ek;ctx.strokeStyle=C.gold;ctx.lineWidth=4;ctx.strokeRect(ex-14,ey-14,28,28);ctx.restore();
+  rich([['one cell = ',C.gold],{f:['−1','12'],c:C.neg},['  (the 12 deals we just played)',C.gold]],ex+60,ey,34,'left',ek)}
+ // legend
+ const la=ev(a,0.6,0.6)*(1-sh);txt('good for the small blind',MX+MS+40,MY+200,32,C.pos,'left','bold',la);txt('bad for the small blind',MX+MS+40,MY+260,32,C.neg,'left','bold',la);
+ // x strip
+ const xa=ev(b,0.25,0.8);
+ if(xa>0){ctx.save();ctx.globalAlpha=xa;for(let i=0;i<256;i++){const L=Math.min(150,XR[i]*256*55)*xa;ctx.fillStyle=C.sb;ctx.fillRect(MX-14-L,MY+i*cs,L,Math.max(1,cs-0.6))}ctx.restore();
+  txt('x',MX-110,MY-50,56,C.sb,'center','bold',xa);txt('one weight per row',MX-200,MY+MS+40,26,C.sb,'center','',xa);
+  rich([['x₁ + x₂ + … + x₂₅₆ = 1',C.sb]],MX-200,MY+MS+80,26,'center',ev(b,0.75,0.6))}
+ // y strip, then turns into the column payoffs xᵀA
+ const ya=ev(c,0.05,0.7), cp=ev(d,0.35,0.9), br=ev(d,0.75,0.6);
+ if(ya>0){ctx.save();for(let j=0;j<256;j++){const L=Math.min(130,YR[j]*256*50)*ya*(1-cp);ctx.globalAlpha=ya*(1-cp);ctx.fillStyle=C.bb;ctx.fillRect(MX+j*cs,MY-14-L,Math.max(1,cs-0.6),L)}
+  for(let j=0;j<256;j++){const v=CR[j],L=v*150*cp;ctx.globalAlpha=cp*(br>0&&j!=JR?1-0.6*br:1);ctx.fillStyle=valCol(v);ctx.fillRect(MX+j*cs,MY-90-Math.max(L,0),Math.max(1,cs-0.6),Math.abs(L))}ctx.restore();
+  txt('y',MX+MS+40,MY-60,56,C.bb,'center','bold',ya*(1-cp));
+  txt('what each column pays us',MX+MS+30,MY-90,28,C.txt,'left','',cp)}
+ rich([['average payoff  =  ',C.txt],['x',C.sb,'bold'],['ᵀ ',C.sb],['A',C.txt,'bold'],[' y',C.bb,'bold'],['  =  one number',C.dim]],MX+MS/2,MY+MS+70,46,'center',ev(c,0.45,0.7)*(1-cp));
+ if(br>0){const x=MX+(JR+0.5)*cs;ctx.save();ctx.globalAlpha=br*0.5;ctx.fillStyle=C.bb;ctx.fillRect(x-cs*1.5,MY,cs*3,MS);ctx.restore();
+  const RX=MX+MS+30;arrow(RX-10,MY+120,x+cs*2,MY+60,C.gold,br);
+  txt('big blind’s best reply:',RX,MY+120,32,C.gold,'left','bold',br);
+  txt('the column that is',RX,MY+170,28,C.dim,'left','',br);txt('worst for us',RX,MY+205,28,C.dim,'left','',br);
+  rich([[CR[JR].toFixed(2).replace('-','−'),C.neg,'bold'],[' chips per hand',C.txt]],RX,MY+265,32,'left',br)}}
+function scLP(){
+ const a=LK('linear program'), y0=250;
+ txt('the linear program',W/2,110,52,C.txt,'center','bold',ev(a,0,0.6));
+ rich([['maximize  ',C.dim],['v',C.gold,'bold']],W/2,y0+40,64,'center',ev(a,0.35,0.6));
+ rich([['so that  ',C.dim],['x₁',C.sb,'bold'],['A₁ⱼ',C.txt],[' + ',C.dim],['x₂',C.sb,'bold'],['A₂ⱼ',C.txt],[' + … + ',C.dim],['x₂₅₆',C.sb,'bold'],['A₂₅₆ ⱼ',C.txt],['  ≥  ',C.dim],['v',C.gold,'bold']],W/2,y0+190,56,'center',ev(a,0.62,0.6));
+ txt('for every column j  (whatever the big blind does)',W/2,y0+280,34,C.bb,'center','',ev(a,0.75,0.6));
+ rich([['x₁ + x₂ + … + x₂₅₆ = 1,   every ',C.dim],['xᵢ',C.sb,'bold'],[' ≥ 0',C.dim]],W/2,y0+420,44,'center',ev(a,0.85,0.6));
+ txt('257 unknowns · 257 inequalities · a computer solves it in a blink',W/2,y0+620,32,C.dim,'center','',after(a,0.1,0.6))}
+function scSolve(){
+ const a=LK('just three'),b=LK('five thirty-sixths');
+ const s=ease((tt-S[a]-0.2)/((E[a]-S[a])*0.7));
+ const X=new Float64Array(256);for(let i=0;i<256;i++)X[i]=lerp(XR[i],XOPT[i],s);const Cc=colPay(X);let mn=1e9;for(const v of Cc)mn=Math.min(mn,v);
+ const L=160,R=1760,bw=(R-L)/256;
+ // top: x
+ txt('small blind’s weights  x',L,90,36,C.sb,'left','bold',ev(a,0,0.5));
+ const B1=490;ctx.save();ctx.globalAlpha=ev(a,0,0.5);ctx.fillStyle=C.line;ctx.fillRect(L,B1,R-L,2);ctx.fillStyle=C.sb;
+ for(let i=0;i<256;i++){const h=X[i]*720;ctx.fillRect(L+i*bw+0.5,B1-h,Math.max(1.5,bw-1),h)}ctx.restore();
+ const lk=ev(a,0.8,0.6);
+ [...XS].sort((p,q)=>p[0]-q[0]).forEach(([i,p],q)=>{const x=L+(i+0.5)*bw, lx=[780,1140,1500][q], ly=150;
+  ctx.save();ctx.globalAlpha=lk*0.7;ctx.strokeStyle=C.sb;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,B1-240-8);ctx.lineTo(lx,ly+58);ctx.stroke();ctx.restore();
+  const d=dig(i);
+  ctx.save();ctx.globalAlpha=lk;rr(lx-150,ly-60,300,118,12);ctx.fillStyle='#1a2633';ctx.fill();ctx.strokeStyle=C.sb;ctx.lineWidth=2;ctx.stroke();ctx.restore();
+  txt(d.map((p,c)=>`${c+1}:${['F','R','CF','CC'][p]}`).join(' '),lx,ly-25,26,C.txt,'center','bold',lk);
+  rich([['weight ',C.dim],{f:['1','3'],c:C.sb}],lx,ly+22,34,'center',lk)});
+ txt('F fold · R raise · CF call, then fold · CC call, then call',L,B1+28,24,C.dim,'left','',lk);
+ // bottom: what each column pays
+ const B2=820,K=380;
+ txt('what each of the big blind’s 256 strategies gets against x',L,585,32,C.bb,'left','bold',ev(a,0,0.5));
+ ctx.save();ctx.globalAlpha=ev(a,0,0.5);ctx.fillStyle=C.line;ctx.fillRect(L,B2,R-L,2);
+ const fin=ev(b,0.2,0.6);
+ for(let j=0;j<256;j++){const v=Cc[j],h=v*K;ctx.fillStyle=(fin>0&&Math.abs(v-VAL)<1e-9)?C.gold:valCol(v);ctx.fillRect(L+j*bw+0.5,B2-Math.max(h,0),Math.max(1.5,bw-1),Math.abs(h))}
+ ctx.setLineDash([12,8]);ctx.strokeStyle=C.gold;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(L,B2-mn*K);ctx.lineTo(R,B2-mn*K);ctx.stroke();ctx.restore();
+ rich([['worst case: ',C.gold],[(mn<0?'−':'+')+Math.abs(mn).toFixed(3),C.gold,'bold']],R-150,B2-mn*K+(mn<0?40:-120),30,'center',ev(a,0,0.5)*(1-fin));
+ rich([['every column ≥ ',C.gold],{f:['5','36'],c:C.gold},[' ≈ 0.139 chips per hand',C.gold]],W/2,1000,48,'center',fin);
+ txt('(gold: the columns that touch the line)',W/2,1060,24,C.dim,'center','',ev(b,0.5,0.6))}
+function scHuman(){
+ const a=LK('human strategy'),b=LK('worst card'),c=LK('bluffs too');
+ const P=[{x:80,col:C.sb,name:'small blind',k:ev(a,0,0.6)},{x:990,col:C.bb,name:'big blind',k:ev(c,0,0.6)}];
+ P.forEach(p=>{txt(p.name,p.x+425,90,46,p.col,'center','bold',p.k)});
+ const rowY=n=>210+(4-n)*205;
+ // bar: segments [frac, color, label]
+ function bars(x,y,segs,k){let X=x;const w=440;segs.forEach(([f,col,lab])=>{ctx.save();ctx.globalAlpha=k;ctx.fillStyle=col;rr(X+1,y,w*f-2,46,8);ctx.fill();ctx.restore();
+  txt(lab,X+w*f/2,y+24,24,'#08121c','center','bold',k);X+=w*f})}
+ const SBR={4:[ev(a,0.22,0.5),'raise all-in',[[1,C.pos,'raise']]],3:[ev(a,0.36,0.5),'call; if raised:',[[2/3,C.pos,'call 2/3'],[1/3,C.dim,'fold 1/3']]],
+  2:[ev(a,0.84,0.5),'fold',[[1,C.dim,'fold']]],1:[ev(b,0.1,0.5),'fold, or bluff:',[[2/3,C.dim,'fold 2/3'],[1/3,C.gold,'raise 1/3']]]};
+ for(const n of[4,3,2,1]){const[k,l,sg]=SBR[n],y=rowY(n);card(P[0].x+60,y,150,n,{a:k,glow:n==1&&ev(b,0.7,0.5)>0?C.gold:null});
+  txt(l,P[0].x+150,y-40,30,C.txt,'left','',k);bars(P[0].x+150,y-5,sg,k)}
+ stamp('BLUFF',P[0].x+760,rowY(1)+10,54,C.gold,ev(b,0.72,0.5));
+ const BBR={4:['if called: raise · if raised: call',[[1,C.pos,'raise / call']]],3:['if called: check · if raised:',[[1/2,C.pos,'call 1/2'],[1/2,C.dim,'fold 1/2']]],
+  2:['if called: check · if raised: fold',[[1,C.dim,'check / fold']]],1:['if raised: fold · if called:',[[2/3,C.dim,'check 2/3'],[1/3,C.gold,'raise 1/3']]]};
+ for(const n of[4,3,2,1]){const k=ev(c,0.08+(4-n)*0.1,0.5),[l,sg]=BBR[n],y=rowY(n);card(P[1].x+60,y,150,n,{a:k,glow:n==1&&ev(c,0.6,0.5)>0?C.gold:null});
+  txt(l,P[1].x+150,y-40,28,C.txt,'left','',k);bars(P[1].x+150,y-5,sg,k)}
+ stamp('BLUFF',P[1].x+760,rowY(1)+10,54,C.gold,ev(c,0.62,0.5))}
+function scWhy(){
+ const a=LK('why one third'),b=LK('with every four'),c=LK('if you fold'),d=LK("can't tell");
+ txt('Why one third?',W/2,80,56,C.txt,'center','bold',ev(a,0,0.5));
+ const ka=ev(a,0.3,0.6);card(260,340,260,3,{a:ka,glow:C.bb});txt('you: big blind',260,520,34,C.bb,'center','bold',ka);
+ txt('the small blind raises to 4!',260,580,30,C.sb,'center','',ev(a,0.75,0.5));
+ // the 9 equally likely worlds: SB holds 1, 2 or 4, and for each a 1/3 split
+ const wk=ev(a,0.8,0.6), rk=ev(b,0.15,0.6), bk=ev(b,0.4,0.6);
+ txt('what the small blind might hold',1130,180,32,C.dim,'center','',wk);
+ [1,2,4].forEach((n,q)=>{for(let z=0;z<3;z++){const x=730+q*400+z*120,y=330;
+  const raises=n==4||(n==1&&z==0), col=n==4?C.pos:C.gold;
+  card(x,y,150,n,{a:wk,dim:rk*(raises?0:1),glow:raises&&(n==4?rk:bk)>0.5?col:null});
+  if(raises)txt(n==4?'raise':'bluff',x,y+105,26,col,'center','bold',n==4?rk:bk);else txt('fold',x,y+105,24,C.dim,'center','',rk)}});
+ rich([['4 raises: 3 real, 1 bluff  →  ',C.txt],{f:['1','4'],c:C.gold},[' of raises are bluffs',C.gold]],1130,520,38,'center',ev(b,0.75,0.6));
+ // the two choices
+ const fk=ev(c,0.05,0.5), ck=ev(c,0.3,0.6), eq=ev(d,0.05,0.6);
+ const box=(x,lab,k,col)=>{ctx.save();ctx.globalAlpha=k;rr(x,640,760,300,22);ctx.fillStyle='#1a2633';ctx.fill();ctx.strokeStyle=eq>0?mix(C.line,C.gold,eq):C.line;ctx.lineWidth=3;ctx.stroke();ctx.restore();txt(lab,x+380,690,40,col,'center','bold',k)};
+ box(120,'fold',fk,C.txt);box(1040,'call',ck,C.txt);
+ rich([['lose the 2 chips you put in: ',C.dim],['−2',C.neg,'bold']],500,800,36,'center',fk);
+ rich([{f:['1','4']},[' × ',C.dim],['+4',C.pos,'bold'],['  +  ',C.dim],{f:['3','4']},[' × ',C.dim],['−4',C.neg,'bold']],1420,790,42,'center',ev(c,0.42,0.6));
+ rich([['=  +1 − 3  =  ',C.dim],['−2',C.neg,'bold']],1420,880,42,'center',ev(c,0.82,0.5));
+ txt('=',960,800,90,C.gold,'center','bold',eq);
+ txt('the same! the big blind can’t do better either way',W/2,1010,40,C.gold,'center','bold',ev(d,0.4,0.6))}
+function scCompare(){
+ const a=LK('never bluffs'),b=LK("isn't allowed");
+ txt('the small blind’s average winnings per hand',W/2,110,46,C.txt,'center','bold',ev(a,0,0.5));
+ const rows=[['both bluff (optimal)',5,ev(a,0,0.6),C.gold],['small blind never bluffs',4,ev(a,0.7,0.6),C.sb],['big blind never bluffs',12,ev(b,0.45,0.7),C.bb]];
+ rows.forEach(([lab,n,k,col],r)=>{const y=310+r*230,L=700,w=n/12*720*eo(k);
+  txt(lab,L-40,y,38,C.txt,'right','',k);ctx.save();ctx.globalAlpha=k;ctx.fillStyle=col;rr(L,y-45,Math.max(1,w),90,12);ctx.fill();ctx.restore();
+  rich([{f:[''+n,'36'],c:col},['  ≈ '+(n/36).toFixed(3),C.dim]],L+w+80,y,52,'left',k)});
+ txt('(no bluffs: a raise means a 4, so the big blind folds everything)',W/2,1000,30,C.dim,'center','',ev(a,0.4,0.6)*(1-ev(b,0,0.5)));
+ txt('(the big blind’s bluff is worth 7/36 of a chip per hand to it)',W/2,1000,30,C.dim,'center','',ev(b,0.7,0.6))}
+function scEnd(){
+ const a=LK('bluffing isn'), k=ev(a,0,0.8), lift=ev(a,0.55,0.8);
+ for(let n=1;n<=4;n++)card(960+(n-2.5)*190,560-(n==1?lift*60:0),300,n,{a:k,rot:(n-2.5)*0.1,glow:n==1&&lift>0?C.gold:null});
+ txt('bluffing is math',W/2,190,100,C.txt,'center','bold',k);
+ rich([['with a 1: raise ',C.gold],{f:['1','3'],c:C.gold},[' of the time',C.gold]],W/2,880,48,'center',lift);
+ txt('Tiny Poker',W/2,1000,34,C.dim,'center','',after(a,0.5,1))}
+const SCENES=[['title',0,scTitle],['the table',2,scTable],['game tree',5,scTree],['strategies',9,scStrat],['one pair',12,scPair],['matrix',13,scMatrix],
+ ['linear program',17,scLP],['solve',18,scSolve],['strategy',20,scHuman],['why ⅓',23,scWhy],['is it worth it',27,scCompare],['end',29,scEnd]];
+function drawFrame(t){tt=t;
+ ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;const g=ctx.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);g.addColorStop(0,'#15222f');g.addColorStop(1,'#080e15');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ for(let q=0;q<SCENES.length;q++){const s0=q?S[SCENES[q][1]]-GAP*0.6:0, s1=q<SCENES.length-1?S[SCENES[q+1][1]]-GAP*0.6:T+1;
+  if(t<s0-0.35||t>s1+0.35)continue;const a=Math.min(cl((t-s0+0.35)/0.35),cl((s1+0.35-t)/0.35));if(a<=0)continue;
+  ctx.save();ctx.globalAlpha=q?a:Math.min(1,cl((s1+0.35-t)/0.35));SCENES[q][2]();ctx.restore()}
+ return cv}
+// the booth's frames per line: [key, [start, middle, end anim times]]
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+// ==== ENGINE END ====
+const CAP=SCRIPT.map(([k,s],i)=>[S[i]-0.2,E[i]+0.2,s]);
+if(Math.abs(VAL-5/36)>1e-12)console.error('LP value check failed',VAL);
+document.getElementById('note').innerHTML=`v0.1 (Oct-21). ${SCRIPT.length} lines, ${T.toFixed(0)} s at the guessed pace. The payoff matrix is computed in this page from the rules. The optimal weights come from the linear program (solve.py, scipy/HiGHS), and the page checks that every big-blind column pays at least 5/36 against them: <b>${(VAL*36).toFixed(6)}/36</b>.`;
+let capOn=false;
+function caption(t){const c=CAP.find(c=>t>=c[0]&&t<c[1]);return c?c[2]:''}
+function render(t){drawFrame(t);const s=caption(t);
+ if(capOn&&s){ctx.save();ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000c';const w=Math.min(1800,ctx.measureText(s).width);ctx.fillRect(W/2-w/2-24,H-84,w+48,62);ctx.fillStyle='#fff';ctx.fillText(s,W/2,H-42,1800);ctx.restore()}
+ capEl.textContent=s;timeEl.textContent=t.toFixed(1)+' / '+T.toFixed(1);scrub.value=t;
+ let ci=0;SCENES.forEach((c,i)=>{if(t>=S[c[1]]-GAP)ci=i});chapBtns.forEach((b,i)=>b.classList.toggle('on',i===ci))}
+const capEl=document.getElementById('cap'),timeEl=document.getElementById('time'),scrub=document.getElementById('scrub'),playB=document.getElementById('play');
+scrub.max=T;
+const chapBtns=SCENES.map(([n,l])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{t=Math.max(0,S[l]-0.3);render(t)};document.getElementById('chap').appendChild(b);return b});
+let t=0,playing=false,last=0;
+function frame(now){if(!playing)return;t+=(now-last)/1000;last=now;if(t>=T){t=T;setPlay(false)}render(t);if(playing)requestAnimationFrame(frame)}
+function setPlay(p){playing=p;playB.textContent=p?'❚❚ Pause':'▶ Play';if(p){if(t>=T)t=0;last=performance.now();requestAnimationFrame(frame)}}
+playB.onclick=()=>setPlay(!playing);
+scrub.oninput=()=>{t=+scrub.value;render(t)};
+document.getElementById('capon').onchange=e=>{capOn=e.target.checked;render(t)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setPlay(!playing)}
+ if(e.code==='ArrowRight'){t=Math.min(T,t+2);render(t)}if(e.code==='ArrowLeft'){t=Math.max(0,t-2);render(t)}});
+const hm=location.hash.match(/t=([\d.]+)/);if(hm)t=+hm[1];
+render(t);
+</script>
+</body></html>

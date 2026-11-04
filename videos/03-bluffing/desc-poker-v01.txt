@@ -1,0 +1,7 @@
+the human voice you hear is real, and that human came up with the game and the idea, but.. the math was redone, and the screenplay, the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the game: a deck of four cards (1-4), one card each, 4 chips each. the small blind posts 1, the big blind posts 2. the small blind can fold, call, or raise all-in; the big blind answers; maybe the small blind answers back. that's it. each player has 256 deterministic strategies, so there's a 256x256 payoff matrix, and a linear program finds the best mix of strategies against an opponent who knows your mix.
+
+the answer: the small blind wins 5/36 of a chip per hand, and its best strategy bluffs: with a 1, raise all-in a third of the time. the big blind bluffs too (raises a 1 a third of the time after a call). why a third: then a quarter of raises are bluffs, and calling a raise with a 3 loses exactly as much as folding. without bluffing, the small blind only gets 4/36.
+
+v0.1. still an attempt, to be improved upon.

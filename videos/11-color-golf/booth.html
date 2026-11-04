@@ -1,0 +1,1226 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>color golf · voice-over booth</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0d0d0d;color:#ddd;font:15px/1.4 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #222;flex-wrap:wrap}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+h1 b{color:#ffd166}
+button{background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c2c}button:disabled{opacity:.4;cursor:default}
+button.rec{background:#7a1010;border-color:#c33}button.rec.on{background:#e22;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#meter{width:110px;height:8px;background:#222;border-radius:4px;overflow:hidden}#meter i{display:block;height:100%;width:0;background:#4c4}
+#clock{font:600 16px ui-monospace,monospace;min-width:60px}
+.small{font-size:12px;color:#888}
+#stage{position:relative;height:62vh;overflow:hidden;border-bottom:1px solid #222}
+#lines{position:absolute;left:0;right:0;transition:transform .35s ease}
+.ln{padding:14px 8vw;font-size:30px;line-height:1.3;color:#555;cursor:pointer;transition:color .25s}
+.ln .dir{display:block;font-size:14px;color:#6a6a3a;font-style:italic;margin-bottom:2px}
+.ln.cur{color:#fff;font-size:40px}.ln.cur .dir{color:#cc4}
+.ln.done{color:#3a3a3a}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:140px;font-weight:700;background:#000a;color:#fff}
+#hint{position:absolute;bottom:8px;right:14px;font-size:12px;color:#666}
+main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:14px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{font-size:14px;margin:0 0 8px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.take{border:1px solid #2a2a2a;border-radius:8px;padding:9px 11px;margin-bottom:9px;background:#141414}
+.take.sel{border-color:#886}
+.take audio{width:100%;height:34px;margin:6px 0}
+.take input{background:#111;color:#ddd;border:1px solid #333;border-radius:5px;padding:5px 7px;width:60%}
+.ok{color:#5c5}.bad{color:#e66}
+textarea{width:100%;height:300px;background:#111;color:#ccc;border:1px solid #333;border-radius:6px;font:13px/1.45 ui-monospace,monospace;padding:8px;box-sizing:border-box}
+select{background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px}
+.ln{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}.ln .tx{flex:1 1 420px}
+.vth{display:flex;gap:6px;flex:none;opacity:.35;transition:opacity .25s}
+.vth figure{margin:0;position:relative}.vth canvas{display:block;width:120px;aspect-ratio:16/9;border-radius:4px;border:1px solid #333;cursor:zoom-in;width:min(120px,8vw)}
+.vth figcaption{position:absolute;left:4px;bottom:2px;font-size:10px;color:#aaa;text-shadow:0 0 3px #000;font-style:normal}
+.ln.cur .vth{opacity:1}.ln.cur .vth canvas{width:min(220px,14vw)}
+body.nof .vth{display:none}
+#vbig{position:fixed;inset:0;background:#000d;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+#vbig canvas{width:min(92vw,160vh);aspect-ratio:16/9;border:1px solid #444}#vbig span{margin-top:8px;color:#aaa;font-size:13px}
+#camv{position:fixed;right:18px;top:100px;width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid #ffd166;display:none;z-index:5;background:#000}
+body.camon #camv{display:block}.take video{width:160px;vertical-align:middle;border-radius:6px}
+</style></head><body>
+<header>
+ <h1><b>color golf</b> · voice-over booth <span class=small>Nov-1 draft script · <a href="cg-anim.html" style="color:#888">the animation</a></span></h1>
+ <button id="rec" class="rec">● Record</button>
+ <button id="stop" disabled>■ Stop</button>
+ <span id="clock">0:00.0</span>
+ <div id="meter"><i></i></div>
+ <select id="mic" title="microphone"></select>
+ <label class="small"><input type="checkbox" id="clean"> mic cleanup (noise/echo/gain)</label>
+ <label class="small"><input type="checkbox" id="count" checked> 3-2-1</label>
+ <label class="small" title="start / middle / end of what the video shows during each line"><input type="checkbox" id="frames" checked> frames</label>
+ <label class="small" title="also record a small webcam video (shown in a corner circle while you talk)"><input type="checkbox" id="cam"> camera</label>
+</header>
+<div id="stage"><div id="lines"></div><div id="cd"></div>
+ <video id="camv" muted playsinline autoplay title="what the camera sees (mirrored here; the video is not)"></video>
+ <div id="vbig"><canvas width="1920" height="1080"></canvas><span></span></div>
+ <div id="hint" title="Record starts at the highlighted line: click a line first to start there">Space / → / click = next line · ← = back · R = record · S / Esc = stop</div></div>
+<main>
+ <section>
+  <h2>Takes <span class="small">(kept in this browser until you delete them)</span></h2>
+  <div id="takes"><div class="small">No takes yet. Press ● Record (or R), read each line, tap Space when you move to the next one.</div></div>
+  <h2 style="margin-top:18px">On the server <span class="small">(what the renderer can get)</span></h2>
+  <div id="server" class="small">…</div>
+ </section>
+ <section>
+  <h2>Script <span class="small">one spoken line per row · rows in (parentheses) are stage directions for the next line</span></h2>
+  <textarea id="script" spellcheck="false"></textarea>
+  <div style="margin-top:6px"><button id="apply">Use this script</button> <button id="reset">Reset to the color golf script</button> <span id="sst" class="small"></span></div>
+ </section>
+</main>
+<script>
+const API='https://test.bloop.monster:61920', K='<VOICE_KEY>';
+const DEFAULT=`(a swarm of little color golf holes being played · title: color golf)
+This is color golf, a little game I made back in 2014. About five thousand people played it.
+(the swarm clears; a phone with the game: the goal color on top · label: the goal)
+You're shown a color, and your job is to make it out of red, green and blue.
+(the red, green and blue rows appear · 7 × 7 × 7 = 343 colors)
+Each one comes in seven shades, from off to full.
+(the pointer taps one shade of each, then swing · label: your color (the ball))
+So you pick a shade of each, and take a swing.
+(the ball stops near the hole · 1 + 1 + 0 = 2 shades away, step by step · then (wordless) the second swing matches and sinks)
+Your ball stops as far from the hole as you are off, and the game tells you how many shades away you are.
+(the game card: 9 colors, the tries for each)
+You get six tries per color, and nine colors per game.
+(score 26 · lower is better · a golf flag)
+Your score is the total number of tries, so, like golf, lower is better.
+(a new color, matched on the first swing · hole in one! · the star flies to the grid)
+If you get it on the first try, that's a hole in one, and you get a star in that color.
+(the grid of 49 stars fills up · the big 50th star)
+Fill up the grid, and your fiftieth hole in one is a big star.
+(all 38 sink animations play at once, each on its own color)
+And when you match a color, the ball sinks into the hole, with one of thirty-eight little animations.
+(2014 web page · 2025 iPhone app · 2026 one html file, MIT)
+Years later I made it into an iPhone app, and now it's back on the web, as one little html file, and it's open source.
+(dglittle.github.io/color-golf · the swarm comes back · hold a beat, then Stop)
+You can play it at dglittle dot github dot io slash color dash golf. Have fun!`;
+const $=id=>document.getElementById(id);
+
+// ---- video frames: the drawing code below is copied verbatim from anim.html (the page the video renders from) ----
+const VID=(()=>{const cv=Object.assign(document.createElement('canvas'),{width:1920,height:1080}), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// ---------- the game (the same rules as index.html in github.com/dglittle/colorgolf) ----------
+const VALUES=[0,43,86,129,172,215,255], ROUNDS=9, TRIES=6;
+const same=(a,b)=>a[0]==b[0]&&a[1]==b[1]&&a[2]==b[2];
+const away=(a,b)=>[0,1,2].reduce((s,i)=>s+Math.abs(VALUES.indexOf(a[i])-VALUES.indexOf(b[i])),0);   // "shades away"
+const rgb=c=>'rgb('+c.join(',')+')', dark=c=>c[0]*.299+c[1]*.587+c[2]*.114<128;
+function rngS(seed){let s=seed%2147483647||1;return()=>(s=(s*16807)%2147483647)/2147483647}
+const rcol=r=>[0,1,2].map(()=>VALUES[Math.floor(r()*7)]);
+// the worked example: a goal color, matched in 2 tries; then a hole in one
+const TGA=[215,86,129], TRY1=[172,129,129], TGB=[43,172,255];
+// the rest of the "current game" card (rounds 3–9) and the 49 + 1 holes in one: seeded, so every frame agrees
+const GAME=(()=>{const r=rngS(909),L=[{c:TGA,n:2},{c:TGB,n:1}];const W8=[1,2,2,3,3,3,4,4,5,6];
+ while(L.length<ROUNDS)L.push({c:rcol(r),n:W8[Math.floor(r()*W8.length)]});return L})();
+const SCORE=GAME.reduce((s,x)=>s+x.n,0);
+const STARS=(()=>{const r=rngS(5050),L=[TGB];while(L.length<50){const c=rcol(r);if(!same(c,[0,0,0]))L.push(c)}return L})();
+// a simple player, for the swarm: each try fixes part of each shade's distance, until it matches (or runs out of tries)
+function play(r,goal){const start=same(goal,[0,0,0])?[255,255,255]:[0,0,0];let c=start.slice();const L=[];
+ while(L.length<TRIES&&!same(c,goal)){c=c.map((v,i)=>{const a=VALUES.indexOf(v),b=VALUES.indexOf(goal[i]),d=b-a;
+  return VALUES[a+Math.sign(d)*Math.ceil(Math.abs(d)*(0.35+0.65*r()))]});L.push(c.slice())}return{start,L}}
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+// DRAFT words for Greg to rewrite. The render finds each line by its key phrase, so keep those (or change them here too).
+const SCRIPT=[
+ ['little game',"This is color golf, a little game I made back in 2014. About five thousand people played it.",1.0],
+ ['shown a color',"You're shown a color, and your job is to make it out of red, green and blue.",0.5],
+ ['seven shades',"Each one comes in seven shades, from off to full.",0.8],
+ ['take a swing',"So you pick a shade of each, and take a swing.",1.5],
+ ['shades away',"Your ball stops as far from the hole as you are off, and the game tells you how many shades away you are.",3.2],
+ ['six tries',"You get six tries per color, and nine colors per game.",0.6],
+ ['like golf',"Your score is the total number of tries, so, like golf, lower is better.",0.8],
+ ['first try',"If you get it on the first try, that's a hole in one, and you get a star in that color.",1.2],
+ ['fiftieth',"Fill up the grid, and your fiftieth hole in one is a big star.",1.2],
+ ['thirty-eight',"And when you match a color, the ball sinks into the hole, with one of thirty-eight little animations.",2.5],
+ ['iphone app',"Years later I made it into an iPhone app, and now it's back on the web, as one little html file, and it's open source.",0.8],
+ ['play it',"You can play it at dglittle dot github dot io slash color dash golf. Have fun!",2.5]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);                 // event f seconds after line i ends
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',ok:'#3ecf6e',red:'#ff5a5a',green:'#3ee06a',blue:'#4d8bff'};
+const CHC=[C.red,C.green,C.blue], CHN=['red','green','blue'];
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const tw=(s,sz,wt='')=>{g.save();g.font=`${wt} ${sz}px ${FONT}`;const w=g.measureText(s).width;g.restore();return w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+function rich(segs,x,y,sz,al='center',a=1){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;const xs=[];segs.forEach((s,i)=>{xs.push(X);txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]});return xs.map((v,i)=>v+ws[i]/2)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+const mixc=(a,b,u)=>a.map((v,i)=>Math.round(lerp(v,b[i],cl(u))));
+function dot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// the pointer: an abstract glowing arrowhead, tip at (x,y), pointing along angle ang
+function finger(x,y,ang,a=1,sc=0.8,col='#ffffff'){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.rotate(ang);g.scale(sc,sc);
+ const h=g.createRadialGradient(-14,0,0,-14,0,46);h.addColorStop(0,col+'55');h.addColorStop(1,col+'00');g.fillStyle=h;g.beginPath();g.arc(-14,0,46,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=22;g.fillStyle=mix(col,'#ffffff',0.55);
+ g.beginPath();g.moveTo(0,0);g.lineTo(-40,-24);g.lineTo(-30,0);g.lineTo(-40,24);g.closePath();g.fill();
+ g.restore()}
+function star(x,y,R,col,a=1,glow=0){if(a<=0)return;g.save();g.globalAlpha*=a;if(glow){g.shadowColor=col;g.shadowBlur=glow}g.beginPath();
+ for(let i=0;i<10;i++){const r=i%2?R*0.42:R,an=-Math.PI/2+i*Math.PI/5;g.lineTo(x+r*Math.cos(an),y+r*Math.sin(an))}g.closePath();g.fillStyle=col;g.fill();g.restore()}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+// ---------- the swarm: lots of little holes being played (the goal on top, the ball on the edge stepping toward it) ----------
+const swCache={};
+const hits=(e,[x1,y1,x2,y2])=>!(e.x+e.w<x1||e.x>x2||e.y+e.h<y1||e.y>y2);
+function swarm(key,seed,keep,dt0,dec,s0){if(swCache[key])return swCache[key];const r=rngS(seed),L=[];let s=s0,t=0,dt=dt0,fails=0;
+ while(s>26&&L.length<160){const w=s,h=s*0.9,e={x:20+r()*(W-40-w),y:20+r()*(H-40-h),w,h};
+  if(keep.some(k=>hits({x:e.x-10,y:e.y-10,w:w+20,h:h+20},k))||L.some(o=>hits({x:e.x-8,y:e.y-8,w:w+16,h:h+16},[o.x,o.y,o.x+o.w,o.y+o.h]))){if(++fails>60){s*=0.9;fails=0}continue}
+  fails=0;e.goal=rcol(r);if(same(e.goal,[0,0,0]))e.goal=[0,0,43];Object.assign(e,play(r,e.goal));e.an=e.L.map(()=>r()*6.283);e.t=t;e.ph=r()*0.5;t+=dt;dt*=dec;L.push(e)}
+ return swCache[key]=L}
+function mini(e,q,a){if(a<=0||q<0)return;const{x,y,w,h}=e,pop=eo(q/0.4),gh=h*0.62,hr=w*0.1;g.save();g.globalAlpha*=a*pop;g.translate(x+w/2,y+h/2);g.scale(0.7+0.3*pop,0.7+0.3*pop);g.translate(-w/2,-h/2);
+ rr(0,0,w,h,w*0.1);g.save();g.clip();g.fillStyle='#000';g.fillRect(0,0,w,h);g.fillStyle=rgb(e.goal);g.fillRect(0,0,w,gh);
+ const k=Math.floor((q-0.5-e.ph)/0.75), u=((q-0.5-e.ph)/0.75)-k, L=e.L, n=L.length, won=same(L[n-1],e.goal);
+ const pos=j=>{if(j<0)return null;const d=away(L[j],e.goal),X=w/2-hr,Y=gh/2-hr,dist=d/18*Math.hypot(X,Y),an=e.an[j];let px=dist*Math.cos(an),py=dist*Math.sin(an);px=Math.max(-X,Math.min(X,px));py=Math.max(-Y,Math.min(Y,py));return[w/2+px,gh/2+py]};
+ const j=Math.min(k,n-1), sunk=won&&k>=n-1?eo((q-0.5-e.ph-0.75*(n-1)-0.3)/0.5):0;
+ dot(w/2,gh/2,hr*(1-sunk),'#000');
+ if(j>=0&&sunk<1){const p1=pos(j),p0=j>0?pos(j-1):[w/2,h*0.85],f=k>n-1?1:eo(u/0.4);dot(lerp(p0[0],p1[0],f),lerp(p0[1],p1[1],f),hr*(1-sunk),rgb(L[j]))}
+ if(won&&n==1&&sunk>0)star(w/2,gh+(h-gh)/2,w*0.08,rgb(e.goal),sunk);
+ g.restore();g.restore()}
+function swarmDraw(list,t0,a){if(a<=0)return;for(const e of list){const q=tt-t0-e.t;if(q<0)break;mini(e,q,a)}}
+const TITLEBOX=[W/2-560,340,W/2+560,740];
+const SW1=swarm('in',2014,[FACE,TITLEBOX],0.55,0.93,150);
+const URLBOX=[W/2-760,330,W/2+760,760];
+const SW2=swarm('out',2026,[FACE,URLBOX],0.25,0.92,120);
+// ---------- the sink animations: the game's 38 (copied from ../review/sets/*.js; each draws a 390×420 picture of the goal + swatch area) ----------
+const SETS=[];
+// ---- 2-solid.js
+// set 'solid', from ../sink-demo-solid.html (the drawing code is copied verbatim; only this wrapper is new)
+SETS.push({ id: 'solid', by: 'Claude · round 2 (solid)', make: function () {
+var VALUES = [0, 43, 86, 129, 172, 215, 255]
+var W = 390, H = 420, GH = 281, R = 39          // a phone-sized game: the goal is the top 281 px, the hole/ball is 20% of the width
+var HX = W / 2, HY = GH / 2, FLY = 0.3, Y0 = GH + 75   // the hole's center; the flight (0.3 s, as in the game) starts in the swatches
+var col = pick()
+
+function pick() {
+    while (true) {
+        var c = [0, 1, 2].map(function () { return VALUES[Math.floor(Math.random() * 7)] })
+        if (c.some(function (v) { return v })) return c
+    }
+}
+var css = function (c) { return 'rgb(' + c.join(',') + ')' }
+var cl = function (x) { return x < 0 ? 0 : x > 1 ? 1 : x }
+var ease = function (x) { x = cl(x); return x * x * (3 - 2 * x) }
+var eo = function (x) { x = cl(x); return 1 - Math.pow(1 - x, 3) }
+var spring = function (s, k, w) { return Math.exp(-k * s) * Math.cos(w * s) }   // 1 at s = 0, wobbling down to 0
+
+// ---- drawing: everything is flat; the only "ink" is black (the hole) and the goal color (the field and the ball) ----
+function disc(g, x, y, r, c) { if (r <= 0) return; g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = c; g.fill() }
+function ell(g, x, y, rx, ry, c) { if (rx <= 0 || ry <= 0) return; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fillStyle = c; g.fill() }
+function ring(g, r, w, a) { if (r <= 0 || w <= 0 || a <= 0) return; g.save(); g.globalAlpha = a; g.beginPath(); g.arc(HX, HY, r, 0, 7); g.lineWidth = w; g.strokeStyle = '#000'; g.stroke(); g.restore() }
+function scene(g, draw) {                       // the goal, then the idea's drawing, then the swatch area (the ball shows there too)
+    g.fillStyle = css(col); g.fillRect(0, 0, W, GH)
+    var b = draw(g)
+    g.fillStyle = '#000'; g.fillRect(0, GH, W, H - GH)
+    if (b && b[1] + b[2] > GH) { g.save(); g.beginPath(); g.rect(0, GH, W, H - GH); g.clip(); disc(g, b[0], b[1], b[2], css(col)); g.restore() }
+}
+// where the ball is during the flight (t in 0..FLY), easing out into the hole
+var flyY = function (t, over) { var u = eo(t / FLY); return Y0 + (HY - Y0) * u }
+
+// ---- the ideas: draw(g, t), t = seconds from the start of the flight; return [x, y, r] of the ball (for the swatch area) ----
+var IDEAS = [
+ { name: 'eclipse', note: 'the ball overshoots a little and settles, so black crescents flicker top and bottom like a wobbling eclipse, then close', dur: 1.2,
+   draw: function (g, t) {
+     var y = t < FLY ? flyY(t) : HY - 14 * Math.exp(-4.5 * (t - FLY)) * Math.sin(16 * (t - FLY))
+     if (t >= FLY + .9) y = HY
+     disc(g, HX, HY, R, '#000'); disc(g, HX, y, R + (t > FLY + .9 ? 1 : 0), css(col))
+     return [HX, y, R]
+   } },
+ { name: 'iris', note: 'the ball falls in a bit small (a black ring shows around it), then swells to fill the hole with a springy "bloop"', dur: 1.2,
+   draw: function (g, t) {
+     var y = t < FLY ? flyY(t) : HY, r
+     if (t < FLY) r = R * (1 - .3 * eo(t / FLY))
+     else { var s = t - FLY; r = s < .12 ? R * .7 : R * (1 - .3 * spring(s - .12, 7, 17)) }   // .7 → overshoots past R → settles
+     disc(g, HX, HY, R, '#000'); disc(g, HX, y, Math.max(r, 0) + (t > FLY + 1 ? 1 : 0), css(col))
+     return [HX, y, r]
+   } },
+ { name: 'ripple', note: 'the thin black seam left around the ball comes loose and rolls outward as a ripple, thinning, with two fainter echoes', dur: 1.5,
+   draw: function (g, t) {
+     var y = t < FLY ? flyY(t) : HY, s = t - FLY
+     var r = t < FLY ? R * (1 - .14 * ease(t / FLY)) : R * (.86 + .14 * eo(s / .15))   // starts full size, shrinks a little on the way
+     disc(g, HX, HY, R, '#000'); disc(g, HX, y, r + (s > .15 ? 1 : 0), css(col))
+     for (var k = 0; k < 3; k++) {
+       var q = (s - .05 - k * .14) / .9; if (q <= 0 || q >= 1) continue
+       ring(g, R + eo(q) * 230, (R * .14) * (1 - q) * (k ? .6 : 1), (1 - q) * (k ? .35 : .8))
+     }
+     return [HX, y, r]
+   } },
+ { name: 'gulp', note: 'the hole opens wide as the ball comes, then snaps shut on it, overshoots, opens a hair, and closes for good', dur: 1.2,
+   draw: function (g, t) {
+     var y = t < FLY ? flyY(t) : HY, s = t - FLY
+     var rh = t < FLY ? R * (1 + .35 * ease(t / FLY)) : R * (1 - .12 + .47 * spring(s, 5, 15))
+     disc(g, HX, HY, rh, '#000'); disc(g, HX, y, R, css(col))
+     return [HX, y, R]
+   } },
+ { name: 'wink', note: 'the ball lands small inside the hole, like a pupil in a black eye; the eye blinks shut to a line, and the line shrinks to a dot and pops', dur: 1.3,
+   draw: function (g, t) {
+     var y = t < FLY ? flyY(t) : HY, s = t - FLY
+     var rb = t < FLY ? R * (1 - .45 * eo(t / FLY)) : R * .55
+     var lid = ease((s - .15) / .16), line = ease((s - .33) / .22)
+     if (s < .55) {
+       ell(g, HX, HY, R * (1 - line * .97), Math.max(R * (1 - lid), 1.6 * (1 - line)), '#000')
+       if (lid < 1) { g.save(); g.beginPath(); g.ellipse(HX, HY, R, R * (1 - lid) + .01, 0, 0, 7); g.clip(); disc(g, HX, y, rb, css(col)); g.restore() }
+     }
+     var q = (s - .55) / .35; if (q > 0 && q < 1) ring(g, 3 + 26 * eo(q), 2.5 * (1 - q), 1 - q)
+     return t < FLY ? [HX, y, rb] : null
+   } },
+ { name: 'shrink', note: 'the ball lands leaving a black ring; ball and hole shrink together to a black dot, which pops into a tiny ring', dur: 1.3,
+   draw: function (g, t) {
+     var y = t < FLY ? flyY(t) : HY, s = t - FLY, k = 1 - ease((s - .12) / .35) * (s > .12 ? 1 : 0)
+     var rb = t < FLY ? R * (1 - .2 * ease(t / FLY)) : R * .8 * k      // starts full size, shrinks a little on the way
+     if (s < .47) { disc(g, HX, HY, Math.max(R * k, 2.5), '#000'); disc(g, HX, y, rb, css(col)) }
+     var q = (s - .47) / .4; if (q > 0 && q < 1) ring(g, 3 + 30 * eo(q), 3 * (1 - q), 1 - q)
+     return [HX, y, rb]
+   } }
+]
+
+
+return { setCol: function (c) { col = c }, FLY: FLY, ideas: IDEAS, frame: function (g, i, t) { scene(g, function (g) { return IDEAS[i].draw(g, Math.max(0, t)) }) } }
+} })
+// ---- 3-solid2.js
+// set 'solid2', from ../sink-demo-solid-2.html (the drawing code is copied verbatim; only this wrapper is new)
+SETS.push({ id: 'solid2', by: 'Claude · round 3 (solid)', make: function () {
+var VALUES = [0, 43, 86, 129, 172, 215, 255]
+var W = 390, H = 420, GH = 281, R = 39          // a phone-sized game: the goal is the top 281 px, the hole/ball is 20% of the width
+var HX = W / 2, HY = GH / 2, FLY = 0.3, Y0 = GH + 75   // the hole's center; the flight (0.3 s, as in the game) starts in the swatches
+var col = pick()
+
+function pick() {
+    while (true) {
+        var c = [0, 1, 2].map(function () { return VALUES[Math.floor(Math.random() * 7)] })
+        if (c.some(function (v) { return v })) return c
+    }
+}
+var css = function (c) { return 'rgb(' + c.join(',') + ')' }
+var cl = function (x) { return x < 0 ? 0 : x > 1 ? 1 : x }
+var ease = function (x) { x = cl(x); return x * x * (3 - 2 * x) }
+var eo = function (x) { x = cl(x); return 1 - Math.pow(1 - x, 3) }
+var spring = function (s, k, w) { return Math.exp(-k * s) * Math.cos(w * s) }   // 1 at s = 0, wobbling down to 0
+
+// ---- drawing: everything is flat; the only "ink" is black (the hole) and the goal color (the field and the ball) ----
+function disc(g, x, y, r, c) { if (r <= 0) return; g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = c; g.fill() }
+function ell(g, x, y, rx, ry, c) { if (rx <= 0 || ry <= 0) return; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 7); g.fillStyle = c; g.fill() }
+function ring(g, r, w, a) { if (r <= 0 || w <= 0 || a <= 0) return; g.save(); g.globalAlpha = a; g.beginPath(); g.arc(HX, HY, r, 0, 7); g.lineWidth = w; g.strokeStyle = '#000'; g.stroke(); g.restore() }
+function scene(g, draw, post) {                       // the goal, then the idea's drawing, then the swatch area (the ball shows there too)
+    g.fillStyle = css(col); g.fillRect(0, 0, W, GH)
+    var b = draw(g)
+    g.fillStyle = '#000'; g.fillRect(0, GH, W, H - GH)
+    if (b && b[1] + b[2] > GH) { g.save(); g.beginPath(); g.rect(0, GH, W, H - GH); g.clip(); disc(g, b[0], b[1], b[2], css(col)); g.restore() }
+    if (post) post(g)
+}
+// where the ball is during the flight (t in 0..FLY), easing out into the hole
+var flyY = function (t, over) { var u = eo(t / FLY); return Y0 + (HY - Y0) * u }
+
+// ---- the ideas: draw(g, t), t = seconds from the start of the flight; return [x, y, r] of the ball (for the swatch area) ----
+var IDEAS = [
+ { name: 'drain', note: 'the ball circles the hole like water going down a drain, the black crescent swirling around it and thinning to nothing', dur: 1.2,
+   draw: function (g, t) {
+     var s = t - FLY, x = HX, y = t < FLY ? flyY(t) : HY
+     if (t >= FLY) { var d = 11 * (1 - ease(s / .9)), a = -Math.PI / 2 + 13 * s - 4 * s * s; x = HX + d * Math.cos(a); y = HY + d * Math.sin(a) }
+     disc(g, HX, HY, R, '#000'); disc(g, x, y, R + (s > .9 ? 1 : 0), css(col))
+     return [x, y, R]
+   } },
+ { name: 'zipper', note: 'the ball lands a little small, leaving a black seam; a bright spot zips once around it, sealing the seam shut behind it', dur: 1.0,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY, u = eo((s - .08) / .45), rb = t < FLY ? R * (1 - .1 * ease(t / FLY)) : R * .9
+     if (t < FLY) disc(g, HX, HY, R, '#000')                       // the whole hole while the ball comes; the seam is what's left of it
+     disc(g, HX, y, rb, css(col))
+     if (t >= FLY && s < .53) {                                     // the seam that's still open: an arc from the zipper to the start
+       var a0 = -Math.PI / 2 + u * Math.PI * 2
+       g.beginPath(); g.arc(HX, HY, R * .95, a0, -Math.PI / 2 + Math.PI * 2); g.lineWidth = R * .1 + 1; g.strokeStyle = '#000'; g.stroke()
+       if (u > 0 && u < 1) disc(g, HX + R * .95 * Math.cos(a0), HY + R * .95 * Math.sin(a0), 4.5, '#000')
+     }
+     disc(g, HX, y, rb + (s > .53 ? R * .12 : 0), css(col))
+     return [HX, y, rb]
+   } },
+ { name: 'squeeze', note: 'the hole squishes like jelly around the ball, black slivers popping out left and right, then top and bottom, settling flat', dur: 1.2,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY, w = t < FLY ? 0 : .3 * spring(s, 4.5, 17)
+     ell(g, HX, HY, R * (1 + w), R * (1 - w), '#000'); disc(g, HX, y, R + (s > 1 ? 1 : 0), css(col))
+     return [HX, y, R]
+   } },
+ { name: 'coin', note: 'the ball lands spinning like a flipped coin: edge-on you see the black hole behind it; it slows, and lands flat, face down', dur: 1.3,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY, th = t < FLY ? 14 * t : 14 * FLY + 14 * (1 - Math.exp(-3.2 * s)) / 3.2
+     var stop = Math.ceil((14 * FLY + 14 / 3.2) / Math.PI) * Math.PI, sx = Math.abs(Math.cos(Math.min(th * stop / (14 * FLY + 14 / 3.2), stop)))
+     disc(g, HX, HY, R, '#000'); ell(g, HX, y, R * sx + (s > 1.05 ? 1.5 : 0), R + (s > 1.05 ? 1.5 : 0), css(col))
+     return [HX, y, R]
+   } },
+ { name: 'scatter', note: 'the moment it lands, the black of the hole splashes out as a few little black drops that fly off and shrink to nothing', dur: 1.2,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY
+     if (t < FLY) disc(g, HX, HY, R, '#000')
+     var q = cl(s / .85)
+     if (s > 0 && q < 1) for (var i = 0; i < 9; i++) {
+       var an = i / 9 * Math.PI * 2 + .35 + (i % 3) * .15, d = R * (.9 + (1.4 + (i * 7 % 5) * .25) * eo(q)), r = (4 + (i * 5 % 4)) * (1 - ease(q))
+       disc(g, HX + Math.cos(an) * d, HY + Math.sin(an) * d + 22 * q * q, r, '#000')
+     }
+     disc(g, HX, y, R + (s > 0 ? 1 : 0), css(col))
+     return [HX, y, R]
+   } },
+ { name: 'shockwave', note: 'the hole closes on impact, and the bump travels down to the edge of the goal, making the boundary with the black below wobble once, like a plucked string', dur: 1.4,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY
+     disc(g, HX, HY, R * (t < FLY ? 1 : 1 - eo(s / .12)), '#000'); disc(g, HX, y, R, css(col))
+     return [HX, y, R]
+   },
+   post: function (g, t) {                                          // the goal's bottom edge: a bump that spreads both ways from the middle
+     var q = (t - FLY - .12) / 1.1; if (q <= 0 || q >= 1) return
+     g.save(); g.beginPath(); g.rect(0, 0, W, GH); g.rect(0, GH, W, H - GH); g.clip()
+     var edge = function (x) { var dx = Math.abs(x - HX), f = q * 300; return GH + 12 * (1 - q) * Math.exp(-Math.pow((dx - f) / 45, 2)) * Math.sin((dx - f) * .07 + 1.2) }
+     g.beginPath(); g.moveTo(0, GH - 20); for (var x = 0; x <= W; x += 3) g.lineTo(x, edge(x)); g.lineTo(W, GH - 20); g.closePath(); g.fillStyle = css(col); g.fill()
+     g.beginPath(); g.moveTo(0, GH + 20); for (var x = 0; x <= W; x += 3) g.lineTo(x, edge(x)); g.lineTo(W, GH + 20); g.closePath(); g.fillStyle = '#000'; g.fill()
+     g.restore()
+   } }
+]
+
+
+return { setCol: function (c) { col = c }, FLY: FLY, ideas: IDEAS, frame: function (g, i, t) { var d = IDEAS[i]; scene(g, function (g) { return d.draw(g, Math.max(0, t)) }, d.post && function (g) { d.post(g, Math.max(0, t)) }) } }
+} })
+// ---- 4-astra1.js
+// set 'astra1', from ../sink-demo-astra.html (the drawing code is copied verbatim; only this wrapper is new)
+SETS.push({ id: 'astra1', by: 'Astra · round 1 (solid)', make: function () {
+var VALUES = [0, 43, 86, 129, 172, 215, 255]
+var W = 390, H = 420, GH = 281, R = 39
+var HX = W / 2, HY = GH / 2, FLY = .3, Y0 = GH + 75
+var SEAM = 3.5, RM = R - SEAM / 2, TAU = Math.PI * 2
+var col = pick()
+
+function pick() {
+    while (true) {
+        var c = [0, 1, 2].map(function () { return VALUES[Math.floor(Math.random() * VALUES.length)] })
+        if (c.some(function (v) { return v }) && (!col || c.some(function (v, i) { return v !== col[i] }))) return c
+    }
+}
+var css = function (c, a) { return 'rgba(' + c.map(Math.round).join(',') + ',' + (a == null ? 1 : a) + ')' }
+var cl = function (x) { return Math.max(0, Math.min(1, x)) }
+var ease = function (x) { x = cl(x); return x * x * (3 - 2 * x) }
+var eo = function (x) { return 1 - Math.pow(1 - cl(x), 3) }
+var mix = function (a, b, u) { return a.map(function (v, i) { return v + (b[i] - v) * u }) }
+var lum = function () { return (col[0] * .299 + col[1] * .587 + col[2] * .114) / 255 }
+var rimK = 1   // 0..1: how much of the hole's hairline shows (it fades in during the flight, so every idea starts rimless)
+var edge = function () { return css(mix(col, [255, 255, 255], .26 * cl((.3 - lum()) / .3))) }
+var pressure = function () { return lum() > .65 ? [0, 0, 0] : [255, 255, 255] }
+
+// The ball is always just one opaque fill. No lighting, shadow or gradient.
+function disc(g, x, y, r, c) {
+    if (r <= 0) return
+    g.beginPath(); g.arc(x, y, r, 0, TAU); g.fillStyle = c; g.fill()
+}
+function hole(g) {
+    // This hairline is outside the hole, in the field; the flying ball covers it.
+    if (lum() < .3 && rimK > 0) { g.save(); g.globalAlpha *= rimK; disc(g, HX, HY, R + .7, edge()); g.restore() }
+    disc(g, HX, HY, R, '#000')
+}
+function ink(g, w, a) {
+    if (w <= 0 || a === 0) return
+    g.save(); g.globalAlpha = (a == null ? 1 : a) * Math.min(1, w / .7)
+    g.lineCap = 'round'; g.lineJoin = 'round'
+    // A narrow contrast edge belongs to the moving seam, never to a shaded ball.
+    if (lum() < .3) { g.strokeStyle = edge(); g.lineWidth = w + 1.4; g.stroke() }
+    g.strokeStyle = '#000'; g.lineWidth = w; g.stroke(); g.restore()
+}
+function rim(g, w) {
+    if (w <= 0) return
+    g.beginPath(); g.arc(HX, HY, RM, 0, TAU); ink(g, w)
+}
+function scene(g, draw) {
+    g.fillStyle = css(col); g.fillRect(0, 0, W, GH)
+    g.save(); g.beginPath(); g.rect(0, 0, W, GH); g.clip()
+    var b = draw(g)
+    g.restore()
+    g.fillStyle = '#000'; g.fillRect(0, GH, W, H - GH)
+    if (b && b[1] + b[2] > GH) {
+        g.save(); g.beginPath(); g.rect(0, GH, W, H - GH); g.clip()
+        disc(g, b[0], b[1], b[2], css(col)); g.restore()
+    }
+}
+function flight(g, t) {
+    var u = cl(t / FLY), y = Y0 + (HY - Y0) * eo(u)
+    // As in the solid-ball round, a small rim makes the moment of contact legible.
+    var r = R - SEAM * ease((u - .55) / .45)
+    hole(g); disc(g, HX, y, r, css(col))
+    return [HX, y, r]
+}
+
+// All six start with the same fixed-radius rim. Each removes it differently.
+// finish = the exact clean-field time, measured from landing; sound lands there.
+var IDEAS = [
+ { name: 'unspool', note: 'the seam unwinds once around the ball, its loose end curling under at the last join', dur: .92, finish: .72, voice: [540, 150, .17],
+   sink: function (g, s) {
+     var q = ease((s - .08) / .64), start = -Math.PI / 2 + TAU * q
+     g.beginPath(); g.arc(HX, HY, RM, start, Math.PI * 1.5); ink(g, SEAM)
+     // The rim stays the same size: only its angular length changes.
+     var curl = 10 * Math.sin(Math.PI * q)
+     if (curl > 0) {
+       var nx = Math.cos(start), ny = Math.sin(start), tx = -ny, ty = nx
+       var x = HX + RM * nx, y = HY + RM * ny
+       g.beginPath(); g.moveTo(x, y)
+       g.bezierCurveTo(x - tx * curl, y - ty * curl,
+         x - nx * curl - tx * curl, y - ny * curl - ty * curl,
+         x - nx * curl, y - ny * curl)
+       ink(g, SEAM * (1 - .4 * q))
+     }
+   } },
+ { name: 'zip', note: 'a zip runs upward through the join, pulling its sides together and swallowing the final notch', dur: 1.04, finish: .84, voice: [390, 130, .16],
+   sink: function (g, s) {
+     var q = ease((s - .1) / .74), front = RM + 22 - (2 * RM + 22) * q
+     // Unclosed sides remain on the circle; tension only bends the next 22 px.
+     var bottom = Math.min(RM, front), steps = 90
+     g.beginPath()
+     for (var side = -1; side <= 1; side += 2) {
+       for (var i = 0; i <= steps; i++) {
+         var f = side < 0 ? i / steps : 1 - i / steps
+         var y = -RM + (bottom + RM) * f
+         var x = side * Math.sqrt(Math.max(0, RM * RM - y * y)) * ease((front - y) / 22)
+         if (side === -1 && i === 0) g.moveTo(HX + x, HY + y)
+         else g.lineTo(HX + x, HY + y)
+       }
+     }
+     g.closePath(); ink(g, SEAM * (1 - ease((q - .9) / .1)))
+     // One short stitch follows the zip and immediately slips below the surface.
+     var tail = 9 * Math.sin(Math.PI * q)
+     if (front < RM && tail > 0) {
+       g.beginPath(); g.moveTo(HX, HY + front + 2)
+       g.lineTo(HX, HY + front + tail); ink(g, 1.5, .6 * (1 - q))
+     }
+   } },
+ { name: 'peel', note: 'the black rim peels from left to right into a little rolled ribbon, then tucks beneath its last edge', dur: 1.06, finish: .86, voice: [460, 145, .20],
+   sink: function (g, s) {
+     var q = ease((s - .1) / .76), front = -RM + 2 * RM * q
+     g.beginPath()
+     // The untouched arc stays pinned; the lifted arc doubles back at the fold.
+     for (var i = 0; i <= 240; i++) {
+       var a = TAU * i / 240, x = RM * Math.cos(a), y = RM * Math.sin(a)
+       if (x < front) {
+         var d = front - x, fold = ease(d / 13)
+         x = front + Math.min(d, 13) * .65 * (1 - q)
+         y *= 1 - ease(q) * fold
+         y -= 7 * Math.sin(Math.PI * q) * fold
+       }
+       if (i === 0) g.moveTo(HX + x, HY + y); else g.lineTo(HX + x, HY + y)
+     }
+     g.closePath(); ink(g, SEAM * (1 - ease((q - .86) / .14)))
+   } },
+ { name: 'squeegee', note: 'a soft diagonal pressure crease sweeps across the join, ironing it into perfectly uninterrupted color', dur: 1.04, finish: .84, voice: [500, 170, .19],
+   sink: function (g, s) {
+     var q = ease((s - .08) / .76), front = -66 + 132 * q
+     g.save(); g.translate(HX, HY); g.rotate(Math.atan2(.6, .8))
+     // One planar pass erases the stationary rim, with no growing circular wave.
+     g.save(); g.beginPath(); g.rect(front, -100, 200, 200); g.clip()
+     g.beginPath(); g.arc(0, 0, RM, 0, TAU); ink(g, SEAM); g.restore()
+     // A little pressure on the surrounding field; the flat ball itself is untouched.
+     g.save(); g.beginPath(); g.rect(-120, -120, 240, 240); g.moveTo(R + 2, 0)
+     g.arc(0, 0, R + 2, 0, TAU, true); g.clip('evenodd')
+     var strength = Math.sin(Math.PI * q) * .14
+     var gr = g.createLinearGradient(front - 5, 0, front + 5, 0)
+     gr.addColorStop(0, css(pressure(), 0)); gr.addColorStop(.5, css(pressure(), strength)); gr.addColorStop(1, css(pressure(), 0))
+     g.fillStyle = gr; g.beginPath(); g.moveTo(front, -65)
+     g.quadraticCurveTo(front + 10, 0, front, 65)
+     g.quadraticCurveTo(front - 10, 0, front, -65); g.fill()
+     g.restore(); g.restore()
+   } },
+ { name: 'wick', note: 'the seam drains down a fine black thread into the swatch area, and the thread follows it out of sight', dur: 1.10, finish: .90, voice: [350, 100, .23],
+   sink: function (g, s) {
+     var reach = ease((s - .06) / .22), drain = ease((s - .28) / .25)
+     var pull = ease((s - .53) / .37), top = HY + RM + (GH - HY - RM + 5) * pull
+     var end = HY + RM + (GH - HY - RM + 5) * reach
+     // The rim keeps its diameter while its ink feeds into the tether.
+     if (end > top) {
+       var bend = 6 * Math.sin(Math.PI * reach) * (1 - pull), width = 2.3 * (1 - .55 * pull)
+       g.beginPath(); g.moveTo(HX, top)
+       g.bezierCurveTo(HX - bend, top + (end - top) * .35,
+         HX + 10, top + (end - top) * .7, HX + 10, end)
+       ink(g, width)
+     }
+     rim(g, SEAM * (1 - drain))
+   } },
+ { name: 'fold', note: 'four tiny paper-like folds press across the join in sequence, with the last crease slipping flat on the bloop', dur: 1.10, finish: .90, voice: [440, 125, .17],
+   sink: function (g, s) {
+     rim(g, SEAM)
+     for (var k = 0; k < 4; k++) {
+       var q = ease((s - .08 - k * .12) / .46), d = (RM * Math.SQRT2 + 8) * (1 - q) - 2 * q
+       g.save(); g.translate(HX, HY); g.rotate(k * Math.PI / 2)
+       // Four separate triangular folds, hinged on the diagonals of the field.
+       g.beginPath(); g.rect(-.5, -.5, 100.5, 100.5); g.clip()
+       g.beginPath(); g.moveTo(d + 1, -1); g.lineTo(100, -1); g.lineTo(100, 100)
+       g.lineTo(-1, 100); g.lineTo(-1, d + 1); g.closePath(); g.fillStyle = css(col); g.fill()
+       if (q > 0 && q < 1) {
+         g.beginPath(); g.moveTo(d, 0); g.lineTo(0, d)
+         ink(g, 1.2, .5 * Math.sin(Math.PI * q))
+       }
+       g.restore()
+     }
+   } }
+]
+
+// Public draw API matches the solid-ball round: t is seconds from flight start.
+IDEAS.forEach(function (idea) {
+    idea.draw = function (g, t) {
+        if (t < FLY) return flight(g, Math.max(0, t))
+        var s = t - FLY
+        // Do not leave covered shapes or near-zero alpha behind at the finish.
+        if (t < FLY + idea.finish) idea.sink(g, s)
+        return null
+    }
+})
+
+
+return { setCol: function (c) { col = c }, FLY: FLY, ideas: IDEAS, frame: function (g, i, t) { rimK = ease(Math.max(0, t) / FLY); scene(g, function (g) { return IDEAS[i].draw(g, Math.max(0, t)) }) } }
+} })
+// ---- 5-claude4.js
+// set 'claude4': ten more solid-ball sinks (Claude, round 4). Format: ../FORMAT.md
+SETS.push({ id: 'claude4', by: 'Claude · round 4 (solid)', make: function () {
+
+var W = 390, H = 420, GH = 281, R = 39, HX = W / 2, HY = GH / 2, FLY = 0.3, Y0 = GH + 75, TAU = Math.PI * 2
+var col = [215, 86, 129]
+var css = function (c) { return 'rgb(' + c.join(',') + ')' }
+var cl = function (x) { return x < 0 ? 0 : x > 1 ? 1 : x }
+var ease = function (x) { x = cl(x); return x * x * (3 - 2 * x) }
+var eo = function (x) { x = cl(x); return 1 - Math.pow(1 - x, 3) }
+var ei = function (x) { x = cl(x); return x * x * x }
+function disc(g, x, y, r, c) { if (r <= 0) return; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fillStyle = c; g.fill() }
+function ring(g, x, y, r, w, a) { if (r <= 0 || w <= 0 || a <= 0) return; g.save(); g.globalAlpha = a; g.beginPath(); g.arc(x, y, r, 0, TAU); g.lineWidth = w; g.strokeStyle = '#000'; g.stroke(); g.restore() }
+var flyY = function (t) { return Y0 + (HY - Y0) * eo(t / FLY) }
+// every idea starts with the full-size ball; one that needs a smaller ball shrinks it to k·R on the way up
+var fk = function (t, k) { return R * (1 - (1 - k) * ease(t / FLY)) }
+
+// each idea: rb = the ball's radius as it flies in; draw(g, t) draws the goal area (after the flat goal color is filled)
+var IDEAS = [
+ { name: 'heartbeat', note: 'the black seam around the ball beats twice, thump-thump, thinner each time, and is gone on the second beat', dur: 1.0, rb: R * .84,
+   draw: function (g, t) {
+     var s = t - FLY, w = R * .16 * ease(t / FLY)
+     if (s > 0) { var b1 = Math.exp(-Math.pow((s - .12) / .06, 2)), b2 = Math.exp(-Math.pow((s - .42) / .06, 2)); w = R * .16 * (1 - ease(s / .6)) * (1 + 1.6 * b1 + 1.2 * b2) }
+     disc(g, HX, HY, R, '#000'); disc(g, HX, t < FLY ? flyY(t) : HY, R - w + (s > .6 ? 1 : 0), css(col))
+   } },
+ { name: 'clock', note: 'the ball lands small; the black around it is wiped away by a clock hand sweeping once around, the ball swelling to fill behind it', dur: 0.9, rb: R * .6,
+   draw: function (g, t) {
+     var s = t - FLY, u = ease((s - .05) / .55), y = t < FLY ? flyY(t) : HY
+     if (u < 1) { g.beginPath(); g.moveTo(HX, HY); g.arc(HX, HY, R, -Math.PI / 2 + u * TAU, -Math.PI / 2 + TAU); g.closePath(); g.fillStyle = '#000'; g.fill() }
+     disc(g, HX, y, t < FLY ? fk(t, .6) : R * (.6 + .4 * eo(u)) + (u >= 1 ? 1 : 0), css(col))
+   } },
+ { name: 'implode', note: 'on impact, faint black rings rush in from far out toward the hole, and the hole collapses to a point as they arrive', dur: 1.0, rb: R,
+   draw: function (g, t) {
+     var s = t - FLY
+     disc(g, HX, HY, R * (s < 0 ? 1 : 1 - ei(s / .55)), '#000'); disc(g, HX, t < FLY ? flyY(t) : HY, s < 0 ? R : R * (1 - ei(s / .55)) - .5, css(col))
+     for (var k = 0; k < 3; k++) { var q = (s - k * .08) / .5; if (q > 0 && q < 1) ring(g, HX, HY, R * .2 + (1 - ei(q)) * 220, 2 + 3 * q, .55 * Math.sin(Math.PI * q)) }
+     var p = (s - .55) / .35; if (p > 0 && p < 1) ring(g, HX, HY, 3 + 22 * eo(p), 2.5 * (1 - p), 1 - p)
+   } },
+ { name: 'mosaic', note: 'the hole is made of little square tiles that flip over to the goal color one by one, in a wave from the middle outward', dur: 1.1, rb: R * .5,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY, T = 9
+     if (s < 0) { disc(g, HX, HY, R, '#000'); disc(g, HX, y, fk(t, .5), css(col)); return }
+     for (var gx = -5; gx <= 5; gx++) for (var gy = -5; gy <= 5; gy++) {
+       var cx = HX + gx * T, cy = HY + gy * T, d = Math.hypot(gx * T, gy * T); if (d > R) continue
+       var f = d < R * .5 ? 1 : cl((s - .02 - (d - R * .5) / (R * .5) * .45) / .2), k = Math.abs(Math.cos(f * Math.PI))   // flips edge-on at the middle of its turn; the middle (under the ball) is already the color
+       g.fillStyle = f < .5 ? '#000' : css(col); g.fillRect(cx - T / 2, cy - T / 2 * k - .3, T + .3, T * k + .6)
+     }
+     if (s < 0) disc(g, HX, y, R * .5, css(col))
+   } },
+ { name: 'doors', note: 'the ball lands small, and the hole opens like two sliding doors: black half-moons slide out left and right, shrinking away', dur: 1.0, rb: R * .7,
+   draw: function (g, t) {
+     var s = t - FLY, u = eo((s - .06) / .6), y = t < FLY ? flyY(t) : HY
+     ;[-1, 1].forEach(function (d) {
+       var r = R * (1 - u), x = HX + d * u * 60
+       if (r <= 0) return
+       g.beginPath(); g.arc(x, HY, r, d < 0 ? Math.PI / 2 : -Math.PI / 2, d < 0 ? Math.PI * 1.5 : Math.PI / 2); g.closePath(); g.fillStyle = '#000'; g.fill()
+     })
+     disc(g, HX, y, t < FLY ? fk(t, .7) : R * (.7 + .3 * eo(s / .2)) * (1 - u), css(col))
+   } },
+ { name: 'spiral', note: 'the seam turns into a spiral that winds itself tight into the center, like a watch spring, and vanishes in a point', dur: 1.0, rb: R * .9,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY
+     if (s < .05) { disc(g, HX, HY, R, '#000'); disc(g, HX, y, t < FLY ? fk(t, .9) : R * .9, css(col)); return }
+     var u = ease((s - .05) / .7); if (u >= 1) return
+     g.beginPath()
+     for (var a = 0; a <= TAU * 3; a += .05) {                       // a spiral from the rim (a = 0) toward the center, shortening from its outer end
+       var f = a / (TAU * 3); if (f < u) continue
+       var r = R * .95 * (1 - f) * (1 - u * .3)
+       g.lineTo(HX + r * Math.cos(a + u * 6), HY + r * Math.sin(a + u * 6))
+     }
+     g.lineWidth = 3.5 * (1 - u * .6); g.strokeStyle = '#000'; g.lineCap = 'round'; g.stroke()
+   } },
+ { name: 'puddle', note: 'the hole spreads out into a wide, flat black puddle, like seen from the side, that thins to a line and evaporates', dur: 1.0, rb: R,
+   draw: function (g, t) {
+     var s = t - FLY, u = ease(s / .7)
+     var rx = R * (1 + 1.8 * eo(s / .5)), ry = R * (1 - eo(s / .45)) + 1.2 * (1 - u)
+     if (s < 0) { disc(g, HX, HY, R, '#000'); disc(g, HX, flyY(t), R, css(col)); return }
+     if (u < 1) { g.save(); g.globalAlpha = 1 - ei(u); g.beginPath(); g.ellipse(HX, HY, rx, Math.max(ry, .5), 0, 0, TAU); g.fillStyle = '#000'; g.fill(); g.restore() }
+     g.beginPath(); g.ellipse(HX, HY, R * (1 - eo(s / .45)), R * (1 - eo(s / .45)), 0, 0, TAU); g.fillStyle = css(col); g.fill()
+   } },
+ { name: 'petals', note: 'the black hole splits into six petals that open outward like a flower blooming, then shrink and fade into the color', dur: 1.1, rb: R * .55,
+   draw: function (g, t) {
+     var s = t - FLY, u = eo((s - .04) / .75), y = t < FLY ? flyY(t) : HY
+     if (s < 0) { disc(g, HX, HY, R, '#000'); disc(g, HX, y, fk(t, .55), css(col)); return }
+     for (var k = 0; k < 6; k++) {
+       var a = k / 6 * TAU + u * .9, d = u * 34, r = R * (1 - u)
+       if (r <= .3) continue
+       g.save(); g.translate(HX + d * Math.cos(a), HY + d * Math.sin(a)); g.rotate(a)
+       g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, r, -Math.PI / 6, Math.PI / 6); g.closePath(); g.fillStyle = '#000'; g.fill(); g.restore()
+     }
+     if (s < .25) disc(g, HX, y, t < FLY ? fk(t, .55) : R * .55 * (1 - ease(s / .25)), css(col))
+   } },
+ { name: 'halftone', note: 'the hole turns into a grid of black dots, like a newspaper photo, and the dots shrink away from the outside in', dur: 1.1, rb: R * .8,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY, T = 7
+     if (s < .04) { disc(g, HX, HY, R, '#000'); disc(g, HX, y, t < FLY ? fk(t, .8) : R * .8, css(col)); return }
+     for (var gx = -6; gx <= 6; gx++) for (var gy = -6; gy <= 6; gy++) {
+       var x = HX + gx * T + (gy % 2 ? T / 2 : 0), yy = HY + gy * T * .87, d = Math.hypot(x - HX, yy - HY); if (d > R || d < R * .72) continue
+       var k = 1 - ease((s - .04 - (1 - d / R) * .45) / .4)
+       disc(g, x, yy, (T * .62) * k, '#000')
+     }
+     disc(g, HX, HY, R * (.8 + .2 * ease((s - .5) / .4)), css(col))
+   } },
+ { name: 'lasso', note: 'the seam is a loop of black thread: it gets tugged out to one side into a teardrop, then snaps away off the edge', dur: 1.0, rb: R * .9,
+   draw: function (g, t) {
+     var s = t - FLY, y = t < FLY ? flyY(t) : HY
+     if (s < .06) { disc(g, HX, HY, R, '#000'); disc(g, HX, y, t < FLY ? fk(t, .9) : R * .9, css(col)); return }
+     var u = (s - .06) / .75; if (u >= 1) return
+     var pull = ei(u) * 260, tip = HX + R + 30 * eo(u * 2.5) + pull, w = 3.5 * (1 - u * .7)
+     g.beginPath()
+     for (var a = 0; a <= TAU + .01; a += .04) {                     // a circle whose right side is drawn out to a point at `tip`
+       var c = Math.cos(a), sn = Math.sin(a), pr = Math.pow(Math.max(0, c), 6)
+       var x = HX + R * .95 * c + pull * (1 - pr * 0) * 1 + (tip - HX - R * .95 - pull) * pr, yy = HY + R * .95 * sn * (1 - .7 * pr) * (1 - .5 * eo(u))
+       g.lineTo(x, yy)
+     }
+     g.lineWidth = w; g.strokeStyle = '#000'; g.stroke()
+   } }
+]
+
+return {
+    setCol: function (c) { col = c },
+    FLY: FLY,
+    ideas: IDEAS,
+    frame: function (g, i, t) {
+        var d = IDEAS[i]
+        g.fillStyle = css(col); g.fillRect(0, 0, W, GH)
+        g.save(); g.beginPath(); g.rect(0, 0, W, GH); g.clip(); d.draw(g, t); g.restore()
+        g.fillStyle = '#000'; g.fillRect(0, GH, W, H - GH)
+        if (t < FLY) { g.save(); g.beginPath(); g.rect(0, GH, W, H - GH); g.clip(); disc(g, HX, flyY(t), fk(t, d.rb / R), css(col)); g.restore() }
+    }
+}
+} })
+// ---- 6-astra2.js
+SETS.push({ id: 'astra2', by: 'Astra · round 2 (solid)', make: function () {
+    var W = 390, H = 420, GH = 281, R = 39, HX = W / 2, HY = GH / 2
+    var FLY = .3, Y0 = GH + 75, SEAM = 4, RM = R - SEAM / 2, TAU = Math.PI * 2
+    var col = [215, 86, 129]
+    var cl = function (x) { return Math.max(0, Math.min(1, x)) }
+    var ease = function (x) { x = cl(x); return x * x * (3 - 2 * x) }
+    var out = function (x) { return 1 - Math.pow(1 - cl(x), 3) }
+    var css = function (c) { return 'rgb(' + c.map(Math.round).join(',') + ')' }
+    var mix = function (a, b, u) { return a.map(function (v, i) { return v + (b[i] - v) * u }) }
+    var lum = function () { return (col[0] * .2126 + col[1] * .7152 + col[2] * .0722) / 255 }
+    var edge = function () { return css(mix(col, [255, 255, 255], .52)) }
+
+    function disc(g, x, y, r, color) {
+        if (r <= 0) return
+        g.beginPath(); g.arc(x, y, r, 0, TAU); g.fillStyle = color; g.fill()
+    }
+    // Contrast belongs to the seam, not to lighting on the ball. It also thins
+    // away, so a nearly vanished black stroke cannot leave a bright ghost.
+    function ink(g, w, a, color) {
+        if (w <= 0 || a <= 0) return
+        g.save(); g.globalAlpha *= (a == null ? 1 : a) * Math.min(1, w / .7)
+        if (lum() < .4) { g.strokeStyle = edge(); g.lineWidth = w + 1.6; g.stroke() }
+        g.strokeStyle = color || '#000'; g.lineWidth = w; g.stroke(); g.restore()
+    }
+    function rim(g, w, a) {
+        if (w <= 0) return
+        g.beginPath(); g.arc(0, 0, RM, 0, TAU); ink(g, w, a)
+    }
+    function flight(g, t) {
+        var u = cl(t / FLY), y = Y0 + (HY - Y0) * out(u)
+        if (lum() < .4) { g.save(); g.globalAlpha *= ease(u); disc(g, HX, HY, R + .8, edge()); g.restore() }   // the hairline fades in: every idea starts rimless
+        disc(g, HX, HY, R, '#000')
+        // One opaque goal-color fill, including while crossing the swatch edge.
+        disc(g, HX, y, R - SEAM * ease(u), css(col))
+    }
+    function trace(g, pts, u, w, a) {
+        if (u <= 0 || w <= 0) return
+        var n = cl(u) * (pts.length - 1), whole = Math.floor(n)
+        g.beginPath(); g.moveTo(pts[0][0], pts[0][1])
+        for (var j = 1; j <= whole; j++) g.lineTo(pts[j][0], pts[j][1])
+        if (whole < pts.length - 1) {
+            var f = n - whole, p = pts[whole], next = pts[whole + 1]
+            g.lineTo(p[0] + (next[0] - p[0]) * f, p[1] + (next[1] - p[1]) * f)
+        }
+        ink(g, w, a)
+    }
+
+    // finish/voice are optional sound cues for hosts that use the round-1
+    // metadata. Audio stays outside frame(); q is time since landing / finish.
+    var IDEAS = [
+        { name: 'checker', note: 'The seam dissolves through a dancing checkerboard of tiny color tiles, each staying exactly in place.', dur: .86, finish: .86, voice: [620, 155, .16],
+          sink: function (g, q) {
+              rim(g, SEAM)
+              // A fixed spatial ordering, not random particles or a traveling wipe.
+              for (var iy = 0; iy < 10; iy++) for (var ix = 0; ix < 10; ix++) {
+                  var order = ((ix * 17 + iy * 29 + ix * iy * 7) % 23) / 22
+                  var delay = (ix + iy) % 2 ? .15 + .36 * order : 0
+                  var p = Math.sqrt(cl((q - delay) / (1 - delay))), size = 8.8 * p
+                  if (p <= 0) continue
+                  g.fillStyle = css(col)
+                  g.fillRect(-40 + ix * 8 + 4 - size / 2, -40 + iy * 8 + 4 - size / 2, size, size)
+              }
+          } },
+        { name: 'comb', note: 'Alternating teeth of color slide through the join from opposite sides and interlock into one smooth surface.', dur: .94, finish: .94, voice: [470, 120, .18],
+          sink: function (g, q) {
+              rim(g, SEAM)
+              for (var j = 0; j < 10; j++) {
+                  var y = -40 + j * 8, near = Math.min(Math.abs(y), Math.abs(y + 8))
+                  var span = Math.sqrt(Math.max(0, 40 * 40 - near * near)) + 1
+                  var delay = (j % 3) * .015, p = cl((q - delay) / (1 - delay))
+                  var side = j % 2 ? -1 : 1, front = side * (-span + 2 * span * p)
+                  if (p <= 0) continue
+                  g.fillStyle = css(col)
+                  g.fillRect(side > 0 ? -span - 1 : front, y - .4, 2 * span * p + 1, 8.8)
+                  // Ten short, opposing moving edges make the comb readable even
+                  // while its teeth cross the already color-matched center.
+                  g.beginPath(); g.moveTo(front, y + 1.5); g.lineTo(front, y + 6.5)
+                  ink(g, 1.2, .65 * Math.sin(Math.PI * p))
+              }
+          } },
+        { name: 'bubblelift', note: 'The black join lifts into a teardrop bubble, pinches free, and bursts softly above the landing spot.', dur: 1.02, finish: 1.02, voice: [710, 175, .18],
+          sink: function (g, q) {
+              var lift = out(q / .72), burst = out((q - .72) / .28)
+              var r = RM * (1 - .62 * lift) + 7 * burst, cy = -44 * lift
+              var detach = ease((q - .43) / .22)
+              var bottom = (RM - 18 * lift) * (1 - detach) + (cy + r) * detach
+              var neck = r * .5522848 * (1 - .96 * ease(q / .43))
+              neck = neck * (1 - detach) + r * .5522848 * detach
+              g.beginPath(); g.moveTo(0, cy - r)
+              g.bezierCurveTo(r * .5522848, cy - r, r, cy - r * .5522848, r, cy)
+              g.bezierCurveTo(r, cy + r * .5522848, neck, bottom, 0, bottom)
+              g.bezierCurveTo(-neck, bottom, -r, cy + r * .5522848, -r, cy)
+              g.bezierCurveTo(-r, cy - r * .5522848, -r * .5522848, cy - r, 0, cy - r)
+              g.closePath(); ink(g, SEAM * (1 - burst))
+          } },
+        { name: 'knot', note: 'The circular join twists into a figure eight, pulls its two loops through the crossing, and slips out of sight.', dur: 1.04, finish: 1.04, voice: [430, 105, .21],
+          sink: function (g, q) {
+              var twist = out(q / .48), pull = ease((q - .38) / .62)
+              g.beginPath()
+              for (var j = 0; j <= 192; j++) {
+                  var a = TAU * j / 192
+                  var x = RM * Math.cos(a) * (1 - .97 * pull)
+                  var y = RM * ((1 - twist) * Math.sin(a) + twist * .65 * Math.sin(2 * a)) * (1 - .98 * pull)
+                  if (j === 0) g.moveTo(x, y); else g.lineTo(x, y)
+              }
+              g.closePath(); ink(g, SEAM * (1 - ease((q - .65) / .35)))
+          } },
+        { name: 'effervesce', note: 'Tiny pinholes of goal color fizz through the black seam and merge until the last scalloped fleck is gone.', dur: .86, finish: .80, voice: [660, 140, .19],
+          sink: function (g, q) {
+              // The pores overlap before their maximum size; cue the bloop at
+              // that closure instead of waiting for already invisible growth.
+              q *= .84
+              // A briefly thicker seam makes the round pores visibly frothy.
+              rim(g, SEAM + 5 * Math.sin(Math.PI * cl(q / .72)))
+              // Round holes eat the seam in place; nothing is sprayed outwards.
+              for (var j = 0; j < 32; j++) {
+                  var a = TAU * j / 32, d = RM + 1.5 * Math.sin(j * 2.4)
+                  var delay = (j * 13 % 17) / 16 * .58
+                  var p = ease((q - delay) / (1 - delay))
+                  disc(g, Math.cos(a) * d, Math.sin(a) * d, 9 * p, css(col))
+              }
+          } },
+        { name: 'degauss', note: 'The join shivers into sideways scanlines that rapidly lose their height, leaving perfectly settled color.', dur: .90, finish: .90, voice: [330, 95, .23],
+          sink: function (g, q) {
+              if (q === 0) { rim(g, SEAM); return }
+              var height = 1 - ease((q - .28) / .72)
+              if (height <= 0) return
+              for (var j = 0; j < 20; j++) {
+                  var y = -38 + j * 4
+                  var dx = 20 * Math.sin(28 * q + j * 1.3) * Math.sin(Math.PI * q) * (1 - .55 * q)
+                  g.save(); g.translate(dx, y); g.scale(1 + .32 * Math.sin(Math.PI * q), height)
+                  g.beginPath(); g.rect(-50, -2, 100, 4); g.clip()
+                  g.beginPath(); g.arc(0, -y, RM, 0, TAU); ink(g, SEAM)
+                  g.restore()
+              }
+          } },
+        { name: 'register', note: 'Three colored impressions separate from the join, slide back into registration, and disappear together on the bloop.', dur: 1.02, finish: 1.02, voice: [560, 135, .18],
+          sink: function (g, q) {
+              if (q === 0) { rim(g, SEAM); return }
+              var colors = lum() < .45 ? [[255, 145, 175], [145, 235, 255], [255, 240, 145]] : [[115, 12, 49], [0, 68, 103], [90, 56, 5]]
+              var d = 16 * Math.sin(Math.PI * q) * (1 - .55 * q)
+              var fade = 1 - ease((q - .56) / .44)
+              for (var j = 0; j < 3; j++) {
+                  var a = -Math.PI / 2 + j * TAU / 3
+                  var c = css(mix([0, 0, 0], colors[j], out(q / .18)))
+                  g.beginPath(); g.arc(Math.cos(a) * d, Math.sin(a) * d, RM, 0, TAU)
+                  ink(g, SEAM * (1 - .55 * out(q / .2)), fade, c)
+              }
+          } },
+        { name: 'crackle', note: 'Hairline cracks dart out from the join, branch through the field, and heal from their tips back to the landing spot.', dur: 1.06, finish: 1.06, voice: [490, 110, .20],
+          sink: function (g, q) {
+              rim(g, SEAM * (1 - ease(q / .52)))
+              var reach = q < .28 ? out(q / .28) : 1 - ease((q - .28) / .72)
+              var w = 1.9 * (1 - ease((q - .5) / .5))
+              for (var j = 0; j < 6; j++) {
+                  g.save(); g.rotate(j * TAU / 6 + .2)
+                  var root = RM * (1 - .2 * out(q)), length = 42 + (j * 11 % 23)
+                  var sign = j % 2 ? 1 : -1
+                  trace(g, [[root, 0], [root + length * .24, sign * 5],
+                      [root + length * .48, -sign * 6], [root + length * .74, sign * 8],
+                      [root + length, sign * 3]], reach, w)
+                  // Each branch starts only when the main crack reaches its fork.
+                  trace(g, [[root + length * .48, -sign * 6],
+                      [root + length * .56, -sign * 18], [root + length * .76, -sign * 24]],
+                      cl((reach - .48) / .52), w * .7)
+                  g.restore()
+              }
+          } },
+        { name: 'pleat', note: 'The join concertinas into a little zigzag ribbon, compresses from both ends, and clicks flat.', dur: 1.04, finish: 1.04, voice: [380, 115, .18],
+          sink: function (g, q) {
+              var fold = out(q / .45), press = ease((q - .32) / .68)
+              var flatten = 1 - .75 * ease((q - .6) / .4)
+              g.beginPath()
+              for (var j = 0; j <= 224; j++) {
+                  var a = TAU * j / 224, x = RM * Math.cos(a), y = RM * Math.sin(a)
+                  var zig = 11 * (2 / Math.PI) * Math.asin(Math.sin(5 * Math.PI * (x / RM + 1) / 2))
+                  var pleated = zig + 3 * Math.sin(a)
+                  y = (y * (1 - fold) + pleated * fold) * flatten
+                  x *= 1 - .97 * press
+                  if (j === 0) g.moveTo(x, y); else g.lineTo(x, y)
+              }
+              g.closePath(); ink(g, SEAM * (1 - ease((q - .7) / .3)))
+          } },
+        { name: 'mesh', note: 'A fine elastic grid puckers toward the landing spot, then relaxes and disappears as the ball becomes the field.', dur: 1.12, finish: 1.12, voice: [410, 120, .22],
+          sink: function (g, q) {
+              var pulse = Math.sin(Math.PI * q), pull = .52 * pulse
+              // The grid is on the field outside the ball at first; it enters
+              // the center only as that part of the ball has already merged.
+              var inner = R * (1 - ease(q / .55))
+              g.save(); g.beginPath(); g.rect(-110, -110, 220, 220)
+              if (inner > 0) { g.moveTo(inner, 0); g.arc(0, 0, inner, 0, TAU) }
+              g.clip('evenodd')
+              for (var axis = 0; axis < 2; axis++) for (var row = -3; row <= 3; row++) {
+                  g.beginPath()
+                  for (var j = 0; j <= 48; j++) {
+                      var x = -96 + j * 4, y = row * 24
+                      if (axis) { var swap = x; x = y; y = swap }
+                      var k = 1 - pull * Math.exp(-(x * x + y * y) / (2 * 55 * 55))
+                      if (j === 0) g.moveTo(x * k, y * k); else g.lineTo(x * k, y * k)
+                  }
+                  ink(g, 1, .42 * pulse)
+              }
+              g.restore(); rim(g, SEAM * (1 - out(q / .7)))
+          } }
+    ]
+
+    return {
+        setCol: function (c) { col = c.slice(0, 3) },
+        FLY: FLY,
+        ideas: IDEAS,
+        frame: function (g, i, t) {
+            var idea = IDEAS[i]
+            g.save()
+            // Respect the host's pixel-ratio transform but isolate all paint state.
+            g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.filter = 'none'
+            g.shadowColor = 'rgba(0,0,0,0)'; g.shadowBlur = 0; g.shadowOffsetX = 0; g.shadowOffsetY = 0
+            g.setLineDash([]); g.lineDashOffset = 0; g.lineCap = 'round'; g.lineJoin = 'round'
+            g.fillStyle = '#000'; g.fillRect(0, 0, W, H)
+            g.fillStyle = css(col); g.fillRect(0, 0, W, GH)
+            if (t < FLY) flight(g, Math.max(0, t))
+            else if (t < FLY + idea.finish) {
+                g.save(); g.beginPath(); g.rect(0, 0, W, GH); g.clip(); g.translate(HX, HY)
+                idea.sink(g, cl((t - FLY) / idea.finish))
+                g.restore()
+            }
+            // At and after the finish only the two opaque field fills are drawn.
+            g.restore()
+        }
+    }
+} })
+const SINKS=[];SETS.forEach(S=>{const set=S.make();set.ideas.forEach((d,i)=>SINKS.push({set,i,name:S.id+'/'+d.name,dur:set.FLY+d.dur}))});
+const sinkBy=n=>{const k=SINKS.find(k=>k.name==n);if(!k)throw Error('no sink '+n);return k};
+let OFF=null;const offCanvas=(w,h)=>{if(!OFF)OFF=document.createElement('canvas');if(OFF.width!=w||OFF.height!=h){OFF.width=w;OFF.height=h}return OFF};
+// draw sink k at time q (0 = the start of its flight) with goal color c, scaled by sc; returns the offscreen canvas (390·sc × 420·sc)
+function sinkPic(k,q,c,sc){const o=offCanvas(Math.ceil(390*sc),Math.ceil(420*sc)),og=o.getContext('2d');og.setTransform(sc,0,0,sc,0,0);k.set.setCol(c);k.set.frame(og,k.i,Math.max(0,Math.min(q,k.dur)));return o}
+// ---------- the phone (the game's screen) ----------
+const PX=380, PY=60, PW=480, PH=960, SCX=PX+14, SCY=PY+14, SCW=PW-28, SCH=PH-28;
+const GHP=SCH/3, HXP=PX+PW/2, HYP=SCY+GHP/2, RP=SCW*0.1, SCP=SCW/390;        // the goal, its hole (radius 10% of the width), the sink scale
+const SWS=46, SWG=10, SW0=PX+PW/2-(7*SWS+6*SWG)/2, ROWY=[600,662,724], ROWC=ROWY[1]+SWS/2;
+const swX=v=>SW0+VALUES.indexOf(v)*(SWS+SWG)+SWS/2, swY=ch=>ROWY[ch]+SWS/2, SWINGY=820;
+const l_shown=LK('shown a color'),l_seven=LK('seven shades'),l_swing=LK('take a swing'),l_away=LK('shades away'),l_six=LK('six tries'),
+ l_golf=LK('like golf'),l_first=LK('first try'),l_fifty=LK('fiftieth'),l_sinks=LK('thirty-eight'),l_app=LK('iphone app'),l_play=LK('play it');
+// where a ball stops: shades_away/18 of the way from the hole toward the goal's corner, at angle an (as in the game)
+function landing(d,an){const X=SCW/2-RP,Y=GHP/2-RP,dist=d/18*Math.hypot(X,Y);let x=dist*Math.cos(an),y=dist*Math.sin(an);
+ if(Math.abs(x)>X||Math.abs(y)>Y){for(let k=1;k<200;k++){const b=an+k*0.05*(k%2?1:-1);x=dist*Math.cos(b);y=dist*Math.sin(b);if(Math.abs(x)<=X&&Math.abs(y)<=Y)break}}
+ return[x,y]}
+// a swing: 0.6 s the three shades fly together into a ball (at the middle of the rows); a miss: 0.3 s the ball flies to where it stops;
+// a match: the ball rises (speeding up) to where the sink starts, then the sink animation plays
+const MERGE=0.6, MISSFLY=0.3, RISEV=3*215.5*SCP/0.3;
+const TAPS=(()=>{const L=[],set=(t,ch,v)=>L.push({t,k:'set',ch,v,x:swX(v),y:swY(ch)});
+ const st={goal:TGA,guess:[0,0,0]};
+ const swing=(t,an,sink)=>{const d=away(st.guess,st.goal),e={t,k:'swing',x:PX+PW/2,y:SWINGY,guess:st.guess.slice(),goal:st.goal,d};
+  if(d){e.land=landing(d,an);e.done=t+MERGE+MISSFLY}else{e.sink=sinkBy(sink);const y1=SCY+GHP+75*SCP;e.rise=2*(ROWC-y1)/RISEV;e.done=t+MERGE+e.rise+e.sink.dur}
+  L.push(e)};
+ const S_=(t,ch,v)=>{set(t,ch,v);st.guess[ch]=v};
+ S_(at(l_swing,0.12),0,TRY1[0]);S_(at(l_swing,0.3),1,TRY1[1]);S_(at(l_swing,0.48),2,TRY1[2]);swing(at(l_swing,0.7),2.35);
+ const e4=E[l_away];S_(e4+0.2,0,TGA[0]);S_(e4+0.6,1,TGA[1]);swing(e4+1.0,0,'solid/ripple');
+ L.push({t:at(l_first,0.02),k:'round',goal:TGB,n:2});st.goal=TGB;st.guess=[0,0,0];
+ S_(at(l_first,0.12),0,TGB[0]);S_(at(l_first,0.22),1,TGB[1]);S_(at(l_first,0.32),2,TGB[2]);swing(at(l_first,0.4),0,'claude4/petals');
+ return L})();
+const SWINGS=TAPS.filter(e=>e.k=='swing');
+function phoneState(t){const s={goal:TGA,n:1,guess:[0,0,0],last:[0,0,0],x:0,y:0,tries:0,anim:null};
+ for(const e of TAPS){if(e.t>t)break;
+  if(e.k=='set')s.guess[e.ch]=e.v;
+  if(e.k=='swing'){if(t<e.done)s.anim=e;else{s.last=e.guess.slice();s.tries++;if(e.land){s.x=e.land[0];s.y=e.land[1]}else{s.x=0;s.y=0}}}
+  if(e.k=='round'){s.goal=e.goal;s.n=e.n;s.guess=[0,0,0];s.last=[0,0,0];s.x=0;s.y=0;s.tries=0}}
+ return s}
+function drawPhone(a,rowsA,t){if(a<=0)return;const s=phoneState(t),won=same(s.last,s.goal)&&s.tries>0,done=won||s.tries>=TRIES,A=s.anim,q=A?t-A.t:0;
+ const ui=rowsA*(A?1-ease(q/0.15):1)*(A?1:ease((t-(SWINGS.filter(e=>e.done<=t).map(e=>e.done).pop()||-9))/0.15));
+ g.save();g.globalAlpha*=a;
+ rr(PX,PY,PW,PH,60);g.fillStyle='#2a2f36';g.fill();rr(PX+4,PY+4,PW-8,PH-8,56);g.fillStyle='#0b0d10';g.fill();
+ g.save();rr(SCX,SCY,SCW,SCH,48);g.clip();g.fillStyle='#000';g.fillRect(SCX,SCY,SCW,SCH);
+ g.fillStyle=rgb(s.goal);g.fillRect(SCX,SCY,SCW,GHP);
+ const sinking=A&&A.sink&&q>=MERGE+A.rise;
+ if(!sinking){if(!won)dot(HXP,HYP,RP,'#000');if(s.tries>0&&!won)dot(HXP+s.x*1,HYP+s.y*1,RP,rgb(s.last))}
+ txt('color '+s.n+' of '+ROUNDS+(done?'':' · try '+(s.tries+1)+' of '+TRIES),PX+PW/2,SCY+GHP+120,19,'#fff','center','',ui);
+ const st=won?(s.tries==1?'hole in one! ★':'you matched the color in '+s.tries+' tries!'):done?'color not matched.':away(s.last,s.goal)+' shades away';
+ txt(st,PX+PW/2,SCY+GHP+156,23,won&&s.tries==1?rgb(s.goal):'#fff','center','bold',ui);
+ for(let ch=0;ch<3;ch++){const ra=ease((rowsA*3-ch))*(A?1-ease(q/0.15):1)*(A?1:ui/Math.max(rowsA,1e-9));if(ra<=0)continue;
+  for(const v of VALUES){const c=[0,0,0];c[ch]=v;const x=swX(v)-SWS/2,y=ROWY[ch],show=!done||v==s.goal[ch];
+   g.save();g.globalAlpha*=ra;rr(x-3.5,y-3.5,SWS+7,SWS+7,9);g.strokeStyle=s.guess[ch]==v?'#fff':done?'#000':'#555';g.lineWidth=2.5;g.stroke();
+   rr(x,y,SWS,SWS,6);g.fillStyle=show?rgb(c):'#000';g.fill();g.restore()}}
+ const ba=ease((rowsA-0.75)*4)*(A?1-ease(q/0.15):1);
+ if(ba>0){rr(PX+PW/2-80,SWINGY-26,160,52,12);g.save();g.globalAlpha*=ba;g.fillStyle='#fff';g.fill();g.restore();
+  txt(done?'next color':'swing',PX+PW/2,SWINGY,21,'#000','center','',ba);
+  rr(PX+PW/2-60,900-24,120,48,12);g.save();g.globalAlpha*=ba;g.fillStyle='#333';g.fill();g.restore();txt('menu',PX+PW/2,900,19,'#ccc','center','',ba)}
+ if(A)drawSwing(A,q);
+ g.restore();
+ rr(PX+PW/2-60,PY+26,120,30,15);g.fillStyle='#000';g.fill();      // the camera notch
+ for(const e of TAPS){const p=t-e.t;if(p>0&&p<0.5&&e.k!='round'){g.save();g.globalAlpha*=(1-p/0.5);g.beginPath();g.arc(e.x,e.y,18+50*p,0,7);g.strokeStyle='#fff';g.lineWidth=3;g.stroke();g.restore()}}
+ g.restore()}
+// the swing animation, q seconds after the tap
+function drawSwing(A,q){
+ if(q<MERGE){const u=ease(q/MERGE);g.save();g.globalCompositeOperation='screen';
+  for(let ch=0;ch<3;ch++){const c=[0,0,0];c[ch]=A.guess[ch];const x0=swX(A.guess[ch]),y0=swY(ch),x=lerp(x0,HXP,u),y=lerp(y0,ROWC,u),sz=lerp(SWS,2*RP,u),rad=lerp(6,RP,u);
+   rr(x-sz/2,y-sz/2,sz,sz,rad);g.fillStyle=rgb(c);g.fill();if(u<1){g.save();g.globalAlpha*=1-u;g.strokeStyle='#fff';g.lineWidth=2;g.stroke();g.restore()}}
+  g.restore();return}
+ if(A.land){const u=eo((q-MERGE)/MISSFLY);dot(lerp(HXP,HXP+A.land[0],u),lerp(ROWC,HYP+A.land[1],u),RP,rgb(A.guess));return}
+ const y1=SCY+GHP+75*SCP;
+ if(q<MERGE+A.rise){const u=(q-MERGE)/A.rise;dot(HXP,lerp(ROWC,y1,u*u),RP,rgb(A.guess));return}
+ // the sink: its goal part onto the goal (centered on the hole), its lower part just below the goal
+ const o=sinkPic(A.sink,q-MERGE-A.rise,A.goal,SCP),dy=GHP/2-140.5*SCP;
+ g.save();g.beginPath();g.rect(SCX,SCY,SCW,GHP);g.clip();g.drawImage(o,0,0,o.width,281*SCP,SCX,SCY+dy,SCW,281*SCP);g.restore();
+ g.drawImage(o,0,281*SCP,o.width,139*SCP,SCX,SCY+GHP,SCW,139*SCP)}
+// the pointer glides from tap to tap (it arrives 0.05 s early and rests just below-right of the target)
+function pointer(t,a){if(a<=0)return;const L=TAPS.filter(e=>e.k!='round');let i=L.findIndex(e=>e.t>t);
+ const near=L.filter(e=>Math.abs(e.t-t)<1.4);if(!near.length)return;
+ const pos=e=>[e.x+10,e.y+12];let p;
+ if(i<0)p=pos(L[L.length-1]);else if(i==0)p=pos(L[0]);else{const A=L[i-1],B=L[i],u=ease((t-A.t)/Math.max(0.2,Math.min(0.5,B.t-A.t-0.05)));const pa=pos(A),pb=pos(B);p=[lerp(pa[0],pb[0],u),lerp(pa[1],pb[1],u)]}
+ const vis=Math.max(...near.map(e=>1-Math.abs(e.t-t)/1.4));
+ finger(p[0],p[1],-2.36,a*cl(vis*2.2),0.85)}
+// ---------- the right side ----------
+const RX=980;
+function label(s,x,y,tx,ty,a){if(a<=0)return;txt(s,x,y,34,C.txt,'left','',a);g.save();g.globalAlpha*=a*0.7;g.strokeStyle=C.dim;g.lineWidth=3;g.setLineDash([6,8]);g.beginPath();g.moveTo(x-16,y);g.lineTo(tx,ty);g.stroke();g.restore()}
+function scLabels(){const a1=ev(l_shown,0.2,0.6)*(1-ev(l_seven,0,0.5)), a3=cl((tt-SWINGS[0].done)/0.5)*(1-ev(l_away,0,0.5));
+ label('the goal',RX,PY+170,PX+PW+12,PY+170,a1);
+ const b1=SWINGS[0];label('your ball',RX,HYP+b1.land[1]+60,HXP+b1.land[0]+RP+8,HYP+b1.land[1],a3)}
+function scShades(){const a=ev(l_seven,0.05,0.6)*(1-ev(l_swing,0,0.5));if(a<=0)return;
+ for(let ch=0;ch<3;ch++){const y=ROWY[ch]+SWS/2,ra=ev(l_seven,0.05+ch*0.12,0.5)*a;txt(CHN[ch],RX,y,34,CHC[ch],'left','bold',ra)}
+ const ka=ev(l_seven,0.55,0.6)*a;
+ rich([['7','#fff','bold'],[' × ',C.dim],['7','#fff','bold'],[' × ',C.dim],['7','#fff','bold'],[' = ',C.dim],[''+VALUES.length**3,C.gold,'bold'],[' colors',C.dim]],RX,250,50,'left',ka)}
+// "shades away": for each shade, how many steps from your shade to the goal's
+function scAway(){const a=ev(l_away,0.0,0.6)*(1-ev(l_six,0,0.5));if(a<=0)return;
+ const s=phoneState(at(l_away,0.5)), D=[0,1,2].map(i=>Math.abs(VALUES.indexOf(s.last[i])-VALUES.indexOf(TGA[i])));
+ txt('steps from your shade to the goal’s',RX,170,30,C.dim,'left','',a);
+ const DX=58;
+ for(let ch=0;ch<3;ch++){const y=280+ch*150,ra=ev(l_away,0.1+ch*0.15,0.5)*a;if(ra<=0)continue;
+  g.save();g.globalAlpha*=ra;
+  for(let k=0;k<7;k++){const c=[0,0,0];c[ch]=VALUES[k];rr(RX+k*DX,y-22,44,44,7);g.fillStyle=rgb(c);g.fill()}
+  const iy=VALUES.indexOf(s.last[ch]), ig=VALUES.indexOf(TGA[ch]);
+  rr(RX+ig*DX-6,y-28,56,56,10);g.strokeStyle=C.gold;g.lineWidth=4;g.stroke();
+  rr(RX+iy*DX-2,y-24,48,48,8);g.strokeStyle='#fff';g.lineWidth=3;g.stroke();
+  if(D[ch]){g.beginPath();const x1=RX+iy*DX+22,x2=RX+ig*DX+22;g.moveTo(x1,y-34);g.quadraticCurveTo((x1+x2)/2,y-80,x2,y-34);g.strokeStyle=C.gold;g.lineWidth=3;g.stroke()}
+  txt(''+D[ch],RX+7*DX+40,y,46,D[ch]?C.gold:C.dim,'center','bold');
+  g.restore();
+  if(ch==0)txt('you',RX+iy*DX+22,y+46,20,'#fff','center','',ra),txt('goal',RX+ig*DX+22,y+46,20,C.gold,'center','',ra)}
+ const sa=ev(l_away,0.62,0.6)*a;
+ rich([[D.join(' + ')+' = ','#fff'],[''+away(s.last,TGA),C.gold,'bold'],[' shades away',C.txt]],RX,760,46,'left',sa)}
+// the "current game" card: 9 colors, the tries for each, the total
+function scCard(){const a=ev(l_six,0,0.6)*(1-ev(l_first,0,0.6));if(a<=0)return;
+ const BX=RX+60,BY=200,BS=118,G=34;
+ txt('one game',RX,140,34,C.dim,'left','',a);
+ GAME.forEach((r,i)=>{const ba=ev(l_six,0.08+i*0.08,0.4)*a;if(ba<=0)return;const x=BX+(i%3)*(BS+G)+BS/2,y=BY+Math.floor(i/3)*(BS+G)+BS/2;
+  dot(x,y,BS/2*(0.8+0.2*ba),rgb(r.c),ba);txt(''+r.n,x,y+2,56,dark(r.c)?'#fff':'#000','center','900',ba)});
+ const sa=ev(l_golf,0.1,0.6)*a;
+ txt(GAME.map(r=>r.n).join(' + '),RX,BY+3*(BS+G)+40,36,C.dim,'left','',sa);
+ rich([['score ',C.txt],[''+SCORE,C.gold,'bold']],RX,BY+3*(BS+G)+110,64,'left',ev(l_golf,0.3,0.6)*a);
+ txt('lower is better',RX,BY+3*(BS+G)+180,34,C.ok,'left','',ev(l_golf,0.65,0.6)*a);
+ // a little golf flag next to the bubbles
+ const fa=ev(l_golf,0.65,0.6)*a;if(fa>0){g.save();g.globalAlpha*=fa;const fx=BX+3*(BS+G)+40,fy=BY+60;g.strokeStyle='#ddd';g.lineWidth=5;g.beginPath();g.moveTo(fx,fy);g.lineTo(fx,fy+300);g.stroke();
+  g.beginPath();g.moveTo(fx,fy);g.lineTo(fx+90,fy+30);g.lineTo(fx,fy+60);g.closePath();g.fillStyle=C.red;g.fill();g.beginPath();g.ellipse(fx,fy+300,60,14,0,0,7);g.fillStyle='#2e7d32';g.fill();g.restore()}}
+// the holes-in-one card: 7×7 stars, the 50th is the big one
+const GX=RX+40, GY=200, GS=62;
+const starXY=i=>i<49?[GX+(i%7)*GS+GS/2,GY+Math.floor(i/7)*GS+GS/2]:[GX+3.5*GS,GY+7*GS+90];
+function scStars(){const a=ev(l_first,0.6,0.6)*(1-ev(l_sinks,0,0.6));if(a<=0)return;
+ txt('holes in one',RX,140,34,C.dim,'left','',a);
+ const sw=SWINGS[2].done, fly=eo((tt-sw-0.1)/0.9);
+ // how many are filled: the first flies in from the phone, then the rest fill during 'fiftieth'
+ const nFill=1+Math.floor(48*cl((tt-at(l_fifty,0.05))/(E[l_fifty]-S[l_fifty])/0.7));
+ for(let i=0;i<49;i++){const[x,y]=starXY(i);star(x,y,24,'#3a4450',a);
+  if(i==0&&fly>0){const x0=PX+PW/2+70,y0=SCY+GHP+156;star(lerp(x0,x,fly),lerp(y0,y,fly)-120*Math.sin(Math.PI*fly),24*(1+0.6*Math.sin(Math.PI*fly)),rgb(STARS[0]),a)}
+  else if(i>0&&i<nFill)star(x,y,24,rgb(STARS[i]),a*eo((tt-at(l_fifty,0.05)-(i-1)/48*0.7*(E[l_fifty]-S[l_fifty]))/0.25))}
+ const[bx,by]=starXY(49);const ba=ev(l_fifty,0.8,0.5),pop=1+0.25*Math.sin(Math.PI*ba);
+ star(bx,by,70,'#3a4450',a);if(ba>0)star(bx,by,70*pop,rgb(STARS[49]),a*ba,40*ba);
+ txt(''+(Math.min(nFill,49)+(ba>0.5?1:0)),GX+7*GS+30,GY+7*GS+90,40,C.gold,'left','bold',ev(l_fifty,0.05,0.4)*a)}
+// ---------- 'thirty-eight': every sink animation, at once, each on its own color ----------
+const MCOLS=8, MTW=200, MTH=144, MGX=20, MGY=22, MX0=(W-(MCOLS*MTW+(MCOLS-1)*MGX))/2, MY0=150;
+const MSLOT=i=>[MX0+(i%MCOLS)*(MTW+MGX),MY0+Math.floor(i/MCOLS)*(MTH+MGY)];
+const MCOL=(()=>{const r=rngS(3838);return SINKS.map(()=>{let c;do c=rcol(r);while(same(c,[0,0,0]));return c})})();
+function scMontage(){const a=ev(l_sinks,0.05,0.6)*(1-ev(l_app,0,0.6));if(a<=0)return;
+ txt('38 ways to sink a ball',W/2,80,40,C.dim,'center','',ev(l_sinks,0.3,0.6)*a);
+ SINKS.forEach((k,i)=>{const[x,y]=MSLOT(i),ta=a*ev(l_sinks,0.05+i*0.008,0.4);if(ta<=0)return;
+  const per=k.dur+0.45, q=((tt-at(l_sinks,0.1)-i*0.11)%per+per)%per-0.15;         // each loops: a short pause, the flight, the sink
+  const o=sinkPic(k,q,MCOL[i],MTW/390);
+  g.save();g.globalAlpha*=ta;rr(x,y,MTW,MTH,12);g.clip();g.drawImage(o,0,(140.5-MTH/2*390/MTW)*MTW/390,o.width,MTH,x,y,MTW,MTH);g.restore()})}
+// three versions: 2014 web page, 2025 iPhone app, 2026 one html file
+function browser(x,y,w,h,a,url,paint){if(a<=0)return;g.save();g.globalAlpha*=a;rr(x,y,w,h,14);g.fillStyle='#e9ecef';g.fill();
+ g.save();rr(x,y+40,w,h-40,0);g.clip();paint(x,y+40,w,h-40);g.restore();
+ [0,1,2].forEach(i=>dot(x+22+i*20,y+20,6,['#ff5f57','#febc2e','#28c840'][i]));rr(x+90,y+9,w-110,22,11);g.fillStyle='#fff';g.fill();
+ txt(url,x+102,y+20,14,'#555','left');g.restore()}
+function oldPage(x,y,w,h){g.fillStyle='#a9a9a9';g.fillRect(x,y,w,h);const px=x+w/2-120,py=y+30;rr(px,py,240,330,16);g.fillStyle='#d7d7d7';g.fill();
+ txt('color golf — round 3 of 10',px+120,py+24,13,'#000','center','bold');
+ rr(px+16,py+50,96,96,12);g.fillStyle=rgb([172,129,43]);g.fill();rr(px+128,py+50,96,96,12);g.fillStyle=rgb([215,129,43]);g.fill();
+ txt('1 shade away',px+176,py+160,12,'#000');
+ for(let ch=0;ch<3;ch++)for(let k=0;k<7;k++){const c=[0,0,0];c[ch]=VALUES[k];rr(px+16+k*30.5,py+185+ch*38,27,32,7);g.fillStyle=rgb(c);g.fill()}
+ rr(px+16,py+300,208,22,8);g.fillStyle='#eee';g.fill();txt('update your color',px+120,py+311,12,'#000')}
+
+function scHistory(){const a=ev(l_app,0,0.7)*(1-ev(l_play,0,0.6));if(a<=0)return;
+ const cards=[[150,'2014','a web page',0.0],[700,'2025','an iPhone app',0.25],[1250,'2026','one html file · open source',0.55]];
+ cards.forEach(([x,yr,what,f])=>{const ca=ev(l_app,f,0.6)*a;txt(yr,x+260,190,64,C.gold,'center','bold',ca);txt(what,x+260,800,34,C.txt,'center','',ca)});
+ browser(150,260,520,480,ev(l_app,0,0.6)*a,'dglittle.github.io/color-golf',oldPage);
+ const pa=ev(l_app,0.25,0.6)*a;if(pa>0){g.save();g.globalAlpha*=pa;g.translate(960,500);g.scale(0.5,0.5);g.translate(-(PX+PW/2),-(PY+PH/2));drawPhone(1,1,SWINGS[2].done+1);g.restore()}
+ const na=ev(l_app,0.55,0.6)*a;
+ browser(1250,260,520,480,na,'dglittle.github.io/color-golf',(x,y,w,h)=>{g.fillStyle='#222';g.fillRect(x,y,w,h);g.save();g.translate(x+w/2,y+h/2+10);g.scale(0.44,0.44);g.translate(-(PX+PW/2),-(PY+PH/2));drawPhone(1,1,SWINGS[1].done+1);g.restore()});
+ txt('MIT license',1250+260,850,28,C.dim,'center','',na)}
+function scIntro(){const a=1-ev(l_shown,0,0.7);if(a<=0)return;
+ swarmDraw(SW1,0.1,a);
+ const ta=ease((tt-0.4)/0.8)*a;if(ta<=0)return;
+ g.save();g.globalAlpha*=ta;const r=58;const tw0=tw('color golf',150,'800'),bx=W/2-(tw0+2*r+40)/2+r;dot(bx,H/2,r,'#1c5b21');g.save();g.beginPath();g.arc(bx,H/2,r,0,7);g.clip();g.fillStyle='#ff73c6';g.fillRect(bx-r,H/2-r,2*r,r*0.9);g.restore();g.restore();
+ txt('color golf',bx+r+40,H/2,150,'#fff','left','800',ta)}
+function scEnd(){const a=ev(l_play,0,0.7);if(a<=0)return;
+ swarmDraw(SW2,S[l_play],0.85*a);
+ txt('play it at',W/2,420,44,C.dim,'center','',a);
+ txt('dglittle.github.io/color-golf',W/2,520,96,'#fff','center','bold',ev(l_play,0.05,0.6));
+ txt('free · one html file · MIT · github.com/dglittle/color-golf',W/2,640,34,C.dim,'center','',ev(l_play,0.5,0.6))}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#1b1f26');grd.addColorStop(1,'#08090b');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ scIntro();
+ const pa=ev(l_shown,0,0.7)*(1-ev(l_sinks,0,0.6)), rows=ev(l_seven,0,1.4);
+ if(pa>0){g.save();const z=0.85+0.15*eo(pa);g.translate(PX+PW/2,PY+PH/2);g.scale(z,z);g.translate(-(PX+PW/2),-(PY+PH/2));drawPhone(pa,rows,t);g.restore();pointer(t,pa)}
+ scLabels();scShades();scAway();scCard();scStars();scMontage();scHistory();scEnd();
+ return cv}
+// the booth's frames per line: [key, [start, middle, end anim times]]
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+
+return {frame:drawFrame,VK};})();
+function vspan(text){const s=text.toLowerCase().replace(/’/g,"'"); const k=VID.VK.find(k=>s.includes(k[0])); if(!k)return null;
+ return k[1].map((t,i)=>[t,['start','middle','end'][i]])}
+let vjob=0;
+function paintFrames(){const job=++vjob, q=[...document.querySelectorAll('canvas.vf')];
+ const step=()=>{if(job!==vjob||!q.length)return; const c=q.shift(), g=c.getContext('2d'); g.imageSmoothingQuality='high';
+  g.drawImage(VID.frame(+c.dataset.t),0,0,c.width,c.height); setTimeout(step,0)}; step()}
+function zoomFrame(t,lab){const o=$('vbig'); o.style.display='flex'; const c=o.querySelector('canvas'), g=c.getContext('2d');
+ g.imageSmoothingQuality='high'; g.drawImage(VID.frame(t),0,0,c.width,c.height); o.querySelector('span').textContent=lab+' · anim t = '+t.toFixed(1)+' s'}
+$('vbig').onclick=()=>$('vbig').style.display='none';
+$('cam').checked=localStorage.getItem('cg1-cam')==='on';document.body.classList.toggle('camon',$('cam').checked);
+$('cam').onchange=async e=>{localStorage.setItem('cg1-cam',e.target.checked?'on':'off');document.body.classList.toggle('camon',e.target.checked);
+ if(rec&&rec.state==='recording')return;
+ if(e.target.checked||stream){try{await openMic()}catch(err){alert('Camera blocked: '+err.message);e.target.checked=false;document.body.classList.remove('camon')}}};
+if($('cam').checked)setTimeout(()=>openMic().catch(()=>{}),0);
+$('frames').checked=localStorage.getItem('cg1-frames')!=='off';document.body.classList.toggle('nof',!$('frames').checked);
+$('frames').onchange=e=>{localStorage.setItem('cg1-frames',e.target.checked?'on':'off');document.body.classList.toggle('nof',!e.target.checked);go(cur,false)};
+let LINES=[], cur=0, rec=null, chunks=[], t0=0, cues=[], stream=null, an=null, playing=null, tick=null;
+function parse(txt){const out=[];let dir=[];for(let r of txt.split('\n')){r=r.trim();if(!r)continue;
+ if(/^\(.*\)$/.test(r)){dir.push(r.slice(1,-1));continue}out.push({text:r,dir:dir.join(' · ')});dir=[]}return out}
+function render(){$('lines').innerHTML=LINES.map((l,i)=>{const v=vspan(l.text);return `<div class="ln" data-i="${i}"><div class="tx">${l.dir?`<span class="dir">${esc(l.dir)}</span>`:''}${esc(l.text)}</div>${v?`<div class="vth">${v.map(([t,n])=>`<figure><canvas class="vf" width="384" height="216" data-t="${t}" data-n="${n}"></canvas><figcaption>${n}</figcaption></figure>`).join('')}</div>`:''}</div>`}).join('');
+ [...document.querySelectorAll('canvas.vf')].forEach(c=>c.onclick=e=>{e.stopPropagation();zoomFrame(+c.dataset.t,c.dataset.n)});paintFrames();
+ [...document.querySelectorAll('.ln')].forEach(e=>e.onclick=()=>go(+e.dataset.i));go(0)}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+let baseY=0,nudge=0;
+addEventListener('load',()=>$('stage').addEventListener('wheel',ev=>{ev.preventDefault();nudge-=ev.deltaY;
+ const L=$('lines'),H=$('stage').clientHeight;nudge=Math.max(-(L.offsetHeight+baseY-H*0.5),Math.min(H*0.5-baseY,nudge));L.style.transform=`translateY(${baseY+nudge}px)`},{passive:false}));
+function go(i,log=true){cur=Math.max(0,Math.min(LINES.length-1,i));
+ document.querySelectorAll('.ln').forEach((e,j)=>{e.classList.toggle('cur',j==cur);e.classList.toggle('done',j<cur)});
+ const e=document.querySelector(`.ln[data-i="${cur}"]`);if(!e)return;
+ const H=$('stage').clientHeight;nudge=0;const tx=e.querySelector('.tx')||e;baseY=Math.min(H*0.38-e.offsetTop,Math.max(6,H-tx.offsetHeight-6)-tx.offsetTop);$('lines').style.transform=`translateY(${baseY}px)`;
+ if(log&&rec&&rec.state==='recording')cues.push({t:+(now()).toFixed(2),line:cur})}
+const now=()=>(performance.now()-t0)/1000;
+const fmt=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+function loadScript(){const s=localStorage.getItem('cg1-script');$('script').value=s||DEFAULT;LINES=parse($('script').value);render()}
+$('apply').onclick=()=>{localStorage.setItem('cg1-script',$('script').value);LINES=parse($('script').value);render();$('sst').textContent='using '+LINES.length+' lines'};
+$('reset').onclick=()=>{localStorage.removeItem('cg1-script');loadScript();$('sst').textContent='reset'};
+// mic
+async function mics(){try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind=='audioinput');
+ const v=$('mic').value;$('mic').innerHTML=d.map(x=>`<option value="${x.deviceId}">${esc(x.label||'microphone')}</option>`).join('');if(v)$('mic').value=v}catch(e){}}
+async function openMic(){if(stream)stream.getTracks().forEach(t=>t.stop());const c=$('clean').checked;
+ stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('mic').value?{exact:$('mic').value}:undefined,echoCancellation:c,noiseSuppression:c,autoGainControl:c,channelCount:1},
+  video:$('cam').checked?{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30},facingMode:'user'}:false});
+ $('camv').srcObject=$('cam').checked?stream:null;
+ mics();const ac=new AudioContext(),src=ac.createMediaStreamSource(stream);an=ac.createAnalyser();an.fftSize=1024;src.connect(an)}
+function meter(){if(an){const a=new Float32Array(an.fftSize);an.getFloatTimeDomainData(a);let m=0;for(const x of a)m=Math.max(m,Math.abs(x));
+ const i=$('meter').firstChild;i.style.width=Math.min(100,m*110)+'%';i.style.background=m>.95?'#e33':m>.6?'#cc4':'#4c4'}requestAnimationFrame(meter)}meter();
+$('mic').onchange=$('clean').onchange=()=>{if(stream)openMic()};
+async function startRec(){if(rec&&rec.state==='recording')return;stopPlay();
+ try{await openMic()}catch(e){alert('Microphone blocked: '+e.message);return}
+ const from=cur;go(from,false);
+ if($('count').checked){const cd=$('cd');cd.style.display='flex';for(const n of[3,2,1]){cd.textContent=n;await new Promise(r=>setTimeout(r,700))}cd.style.display='none'}
+ const vid=stream.getVideoTracks().length>0;
+ const mt=(vid?['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/mp4','video/webm']:['audio/webm;codecs=opus','audio/mp4','audio/webm']).find(m=>MediaRecorder.isTypeSupported(m));
+ rec=new MediaRecorder(stream,{mimeType:mt,audioBitsPerSecond:160000,...(vid?{videoBitsPerSecond:1200000}:{})});chunks=[];cues=[{t:0,line:from}];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});addTake(blob,now(),cues.slice())};
+ t0=performance.now();rec.start(1000);$('rec').classList.add('on');$('rec').disabled=true;$('stop').disabled=false;
+ tick=setInterval(()=>$('clock').textContent=fmt(now()),100)}
+function stopRec(){if(!rec||rec.state!=='recording')return;rec.stop();clearInterval(tick);$('rec').classList.remove('on');$('rec').disabled=false;$('stop').disabled=true}
+$('rec').onclick=startRec;$('stop').onclick=stopRec;
+addEventListener('keydown',e=>{if(e.target.tagName=='TEXTAREA'||e.target.tagName=='INPUT')return;
+ if($('vbig').style.display=='flex'&&e.key=='Escape'){$('vbig').style.display='none';return}
+ if(e.key==' '||e.key=='ArrowRight'||e.key=='ArrowDown'){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'||e.key=='ArrowUp'){e.preventDefault();go(cur-1)}
+ else if(e.key=='r'||e.key=='R')startRec();else if(e.key=='s'||e.key=='S'||e.key=='Escape')stopRec()});
+// takes, kept in IndexedDB
+let db;const idb=new Promise(r=>{const q=indexedDB.open('cg-voice-1',1);q.onupgradeneeded=()=>q.result.createObjectStore('takes',{keyPath:'id'});q.onsuccess=()=>r(db=q.result)});
+const store=m=>db.transaction('takes',m).objectStore('takes');
+async function addTake(blob,dur,cues){await idb;const d=new Date(),p=n=>String(n).padStart(2,'0');
+ const id=`cg1-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+ const t={id,blob,dur,cues,script:LINES,when:d.toString(),note:'',up:false};store('readwrite').put(t).onsuccess=showTakes}
+async function showTakes(){await idb;const all=[];store('readonly').openCursor().onsuccess=e=>{const c=e.target.result;if(c){all.push(c.value);c.continue();return}
+ all.reverse();if(!all.length)return;$('takes').innerHTML='';
+ for(const t of all){const div=document.createElement('div');div.className='take';const url=URL.createObjectURL(t.blob);
+  div.innerHTML=`<b>${t.id.slice(7)}</b> <span class="small">${fmt(t.dur)} · ${(t.blob.size/1e6).toFixed(2)} MB · ${t.cues.length} cues</span>
+   ${t.blob.type.startsWith('video')?`<video controls playsinline src="${url}"></video>`:`<audio controls src="${url}"></audio>`}
+   <input placeholder="note (optional)" value="${esc(t.note||'')}"> <button class="up">⬆ Upload</button> <button class="del">✕</button>
+   <span class="st small">${t.up?'<span class=ok>uploaded ✓</span>':''}</span>`;
+  const au=div.querySelector('audio,video');au.onplay=()=>{stopPlay();playing={au,t};div.classList.add('sel');follow()};
+  au.onpause=au.onended=()=>div.classList.remove('sel');
+  div.querySelector('input').onchange=e=>{t.note=e.target.value;store('readwrite').put(t)};
+  div.querySelector('.del').onclick=()=>{if(confirm('Delete this take from the browser?'))store('readwrite').delete(t.id).onsuccess=()=>{div.remove()}};
+  div.querySelector('.up').onclick=()=>upload(t,div);$('takes').appendChild(div)}}}
+function stopPlay(){if(playing){playing.au.pause();playing=null}}
+function follow(){if(!playing||playing.au.paused)return;const s=playing.au.currentTime;let l=0;
+ for(const c of playing.t.cues)if(c.t<=s)l=c.line;if(l!==cur)go(l,false);requestAnimationFrame(follow)}
+async function upload(t,div){const st=div.querySelector('.st');st.textContent='uploading…';t.note=div.querySelector('input').value;
+ const ext=t.blob.type.includes('mp4')?(t.blob.type.startsWith('video')?'mp4':'m4a'):'webm';
+ try{let r=await fetch(`${API}/upload?k=${K}&id=${t.id}&ext=${ext}`,{method:'POST',body:t.blob});if(!r.ok)throw Error('upload '+r.status);
+  r=await fetch(`${API}/meta?k=${K}&id=${t.id}`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({id:t.id,when:t.when,duration:t.dur,mime:t.blob.type,note:t.note,cues:t.cues.map(c=>({...c,text:(t.script[c.line]||{}).text})),script:t.script})});
+  if(!r.ok)throw Error('meta '+r.status);t.up=true;store('readwrite').put(t);st.innerHTML='<span class=ok>uploaded ✓</span>';listServer()}
+ catch(e){st.innerHTML=`<span class=bad>failed (${esc(e.message)}): the take is still here, try again</span>`}}
+async function listServer(){try{let j=await (await fetch(`${API}/list?k=${K}`)).json();
+ j=j.filter(x=>x.id.startsWith('cg1-'));$('server').innerHTML=j.length?j.map(x=>`${esc(x.id)} · ${(x.bytes/1e6).toFixed(2)} MB${x.meta?` · ${fmt(x.meta.duration)}${x.meta.note?' · “'+esc(x.meta.note)+'”':''}`:''}`).join('<br>'):'nothing uploaded yet'}
+ catch(e){$('server').innerHTML='<span class=bad>server unreachable</span> (takes stay safe in this browser)'}}
+loadScript();showTakes();listServer();mics();addEventListener('resize',()=>go(cur,false));
+</script></body></html>

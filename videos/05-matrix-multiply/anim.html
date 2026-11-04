@@ -1,0 +1,266 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Multiplying matrices on paper · animation v0.1</title>
+<style>
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;max-width:1000px;margin:30px auto;padding:0 20px;color:#222}
+h1{margin:0}.sub{color:#777;margin:4px 0 18px}
+#box{background:#000;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px #0003}
+canvas{display:block;width:100%;aspect-ratio:16/9}
+#bar{display:flex;align-items:center;gap:12px;margin-top:10px}
+#play{width:84px;font-size:15px;padding:6px 0;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+#scrub{flex:1}
+#time{font:14px ui-monospace,Menlo,monospace;color:#555;width:120px;text-align:right}
+#cap{min-height:3.2em;margin:12px 0;font-size:19px;color:#333;font-style:italic}
+#chap button{font-size:13px;margin:0 6px 6px 0;padding:3px 9px;border:1px solid #ccc;border-radius:12px;background:#f7f7f7;cursor:pointer}
+#chap button.on{background:#ffe9a8;border-color:#d9b24a}
+.note{color:#666;font-size:14px;border-top:1px solid #eee;margin-top:22px;padding-top:10px}
+label{font-size:14px;color:#555}
+</style></head><body>
+<h1>Multiplying matrices on paper</h1>
+<div class="sub">Animation v0.1, for your screenplay. Space = play/pause · ← → = 2 s back/forward · drag the scrubber. Every frame is drawn live. The timing is a guess (about 2.5 words a second); the final render stretches each line to fit your recorded voice.</div>
+<div id="box"><canvas id="c" width="1920" height="1080"></canvas></div>
+<div id="bar"><button id="play">▶ Play</button><input id="scrub" type="range" min="0" max="100" step="0.02" value="0"><span id="time">0.0</span></div>
+<div id="cap"></div>
+<div id="chap"></div>
+<label><input type="checkbox" id="capon"> subtitles inside the box</label>
+<div class="note" id="note"></div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// optional on-screen credit at the end (the layout has a name: Falk's scheme, Sigurd Falk 1951). Set to false to drop it.
+const CREDIT=true;
+// ---------- the math (every number on screen is computed here) ----------
+const mm=(X,Y)=>X.map(r=>Y[0].map((_,j)=>r.reduce((s,x,k)=>s+x*Y[k][j],0)));
+const MA=[[2,1,3],[1,4,2]];            // A: 2×3
+const MB=[[1,5],[2,1],[3,2]];          // B: 3×2
+const MC=mm(MA,MB);                    // C = AB: 2×2
+const M=MA.length, N=MB.length, P=MB[0].length;
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+const SCRIPT=[
+['not claiming',"I don't know where I found this, and I'm not claiming I invented it. It's just an idea I want to tell more people about, because of how awesome it is.",0.8],
+['on paper',"This is a nice way for humans to multiply matrices on paper.",1.4],
+['we have our first',"We have our first matrix.",1.6],
+['draw it above',"And then, rather than drawing our next matrix next to it, we instead draw it above.",1.6],
+['implied space',"And then, this implied space is the result.",3.4],
+['trace our finger',"And to calculate each cell, we need only trace our finger left to get the stuff we care about in the first matrix, and up to get the stuff we care about in the second matrix.",0.6],
+['sum them',"And then just do the regular: multiply all the elements, and sum them.",2.6],
+['happy manual',"Happy manual matrix multiplicating!",4]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);                 // event f seconds after line i ends
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',a:'#4da3ff',b:'#ff9f43',ok:'#3ecf6e',ink:'#08121c'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const tw=(s,sz,wt='')=>{g.save();g.font=`${wt} ${sz}px ${FONT}`;const w=g.measureText(s).width;g.restore();return w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+// rich text: segs = [[text, color, weight]]; returns the x where each segment starts
+function rich(segs,x,y,sz,al='center',a=1){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;const xs=[];segs.forEach((s,i)=>{xs.push(X);txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]});return xs.map((v,i)=>v+ws[i]/2)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function dot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.5;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// a matrix cell: lit = 0..1 tint toward col; ring = 0..1 glowing outline
+function cell(x,y,s,col,{a=1,lit=0,ring=0,dash=0,v=null,va=1,vcol=C.txt,vs=1,only=false}={}){if(a<=0)return;const p=Math.max(3,s*0.05);
+ g.save();g.globalAlpha*=a;const ga=g.globalAlpha;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);
+ if(only){}else if(dash){g.setLineDash([s*0.09,s*0.07]);g.strokeStyle=col;g.globalAlpha=ga*dash;g.lineWidth=Math.max(1.5,s*0.025);g.stroke();g.globalAlpha=ga;g.setLineDash([])}
+ else{g.fillStyle=lit>0?mix(C.panel,col.length==7?col:C.gold,0.5*lit):C.panel;g.fill();g.strokeStyle=mix('#2a3a4a',col,0.35+0.65*lit);g.lineWidth=Math.max(1.5,s*0.02);g.stroke()}
+ if(ring>0){g.globalAlpha=ga*ring;g.shadowColor=col;g.shadowBlur=s*0.25;g.strokeStyle=col;g.lineWidth=s*0.045;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);g.stroke()}
+ g.restore();
+ if(v!=null&&va>0){g.save();g.translate(x+s/2,y+s/2);const k=vs;g.scale(k,k);txt(''+v,0,s*0.03,s*0.44,lit>0.5&&vcol==C.txt?'#fff':vcol,'center','bold',a*va);g.restore()}}
+// square brackets around a matrix
+function brackets(x,y,w,h,col,a=1){if(a<=0)return;const d=Math.min(22,w*0.08);g.save();g.globalAlpha*=a;g.strokeStyle=col;g.lineWidth=4;g.lineCap='round';g.lineJoin='round';
+ g.beginPath();g.moveTo(x+d-4,y-6);g.lineTo(x-4,y-6);g.lineTo(x-4,y+h+6);g.lineTo(x+d-4,y+h+6);g.moveTo(x+w-d+4,y-6);g.lineTo(x+w+4,y-6);g.lineTo(x+w+4,y+h+6);g.lineTo(x+w-d+4,y+h+6);g.stroke();g.restore()}
+// the "finger": an abstract glowing arrowhead, tip at (x,y), pointing along angle ang (a soft halo + a bright chevron)
+function finger(x,y,ang,a=1,sc=0.8,col='#fff'){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.rotate(ang);g.scale(sc,sc);
+ const h=g.createRadialGradient(-14,0,0,-14,0,46);h.addColorStop(0,col+'55');h.addColorStop(1,col+'00');g.fillStyle=h;g.beginPath();g.arc(-14,0,46,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=22;g.fillStyle=mix(col,'#ffffff',0.55);
+ g.beginPath();g.moveTo(0,0);g.lineTo(-40,-24);g.lineTo(-30,0);g.lineTo(-40,24);g.closePath();g.fill();
+ g.restore()}
+// ---------- the cool animation of the trick: lots of little A·B=C's, each smaller than the last, packing into the empty space ----------
+function rngS(seed){let s=seed%2147483647||1;return()=>(s=(s*16807)%2147483647)/2147483647}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+const swCache={};
+// keep: boxes to stay out of; dt0/dec: first gap between arrivals and how fast the gaps shrink
+function swarm(key,seed,keep,dt0,dec,s0=84){if(swCache[key])return swCache[key];const r=rngS(seed),R=(h,w)=>[...Array(h)].map(()=>[...Array(w)].map(()=>r()<0.12?0:1+Math.floor(r()*4)));
+ const out=[],boxes=keep.map(b=>b.slice());let t=0,s=s0;
+ for(let k=0;k<400&&s>=10;k++,s*=0.982){let m=1+Math.floor(r()*3),n=1+Math.floor(r()*3),p=1+Math.floor(r()*3);if(k==0&&key=='in'){m=2;n=3;p=2}
+  const gb=Math.max(3,s*0.22),w=(n+p)*s+gb,h=(n+m)*s+gb,pad=Math.max(7,s*0.3);let ok=null;
+  for(let tr=0;tr<300&&!ok;tr++){const c0=k==0&&tr==0&&key=='in',x=c0?W/2-w/2:20+r()*(W-40-w),y=c0?H/2-h/2+40:20+r()*(H-40-h);
+   if(boxes.every(([x1,y1,x2,y2])=>x+w+pad<x1||x>x2+pad||y+h+pad<y1||y>y2+pad))ok=[x,y]}
+  if(!ok)continue;
+  const A=R(m,n),B=R(n,p);out.push({t,x:ok[0],y:ok[1],w,h,s,gb,m,n,p,A,B,Cm:mm(A,B),sp:lerp(1,1.7,1-s/s0),per:5+r()*5,ph:r()});
+  boxes.push([ok[0],ok[1],ok[0]+w,ok[1]+h]);t+=Math.max(0.07,dt0*Math.pow(dec,out.length))}
+ return swCache[key]=out}
+// one little A·B=C, q seconds after it arrived: A pops in, B pops in next to it and slides up, then each cell of C traces left and up and fills
+function mini(e,q,a){if(a<=0||q<0)return;const{x,y,s,gb,m,n,p,A,B,Cm}=e;q*=e.sp;
+ const ax=c=>x+c*s, ay=r=>y+n*s+gb+r*s, bx=c=>x+n*s+gb+c*s, by=r=>y+r*s;
+ const nC=m*p, c0=1.0, cd=0.3, fin=c0+nC*cd+0.4, cyc=q>fin+e.ph*e.per?(q-fin-e.ph*e.per)%e.per:-9;
+ const aIn=eo(q/0.28), bIn=eo((q-0.22)/0.28), up=ease((q-0.5)/0.4), cIn=ease((q-0.85)/0.2);
+ const dy=(ay(0)+m*s/2-n*s/2-y)*(1-up);
+ const U=k=>{const u1=q-c0-k*cd,u2=cyc-k*cd;return u1>=0&&u1<0.6?u1:u2>=0&&u2<0.6?u2:-1};      // a cell's tracer clock
+ const bri=u=>u<0?0:cl(u/0.08)*(1-cl((u-0.35)/0.2));
+ const lA=[...Array(m)].map(()=>Array(n).fill(0)), lB=[...Array(n)].map(()=>Array(p).fill(0));
+ for(let i=0;i<m;i++)for(let j=0;j<p;j++){const b=bri(U(i*p+j));for(let c=0;c<n;c++){lA[i][c]=Math.max(lA[i][c],b);lB[c][j]=Math.max(lB[c][j],b)}}
+ g.save();g.globalAlpha*=a*lerp(1,0.62,ease((q-fin)/1.2));const big=s>=22;
+ if(big){brackets(ax(0),ay(0),n*s,m*s,C.a,0.5*aIn);brackets(bx(0),by(0)+dy,p*s,n*s,C.b,0.5*bIn);brackets(bx(0),ay(0),p*s,m*s,C.gold,0.5*cIn)}
+ A.forEach((row,r)=>row.forEach((v,c)=>cell(ax(c),ay(r),s,C.a,{a:aIn,lit:lA[r][c],v,vs:0.6+0.4*aIn})));
+ B.forEach((row,r)=>row.forEach((v,c)=>cell(bx(c),by(r)+dy,s,C.b,{a:bIn,lit:lB[r][c],v,vs:0.6+0.4*bIn})));
+ for(let i=0;i<m;i++)for(let j=0;j<p;j++){const k=i*p+j, nv=ease((q-c0-k*cd-0.2)/0.15), b=bri(U(k));
+  if(nv<1)cell(bx(j),ay(i),s,C.gold,{a:cIn*(1-nv),dash:1});
+  if(nv>0)cell(bx(j),ay(i),s,C.gold,{a:nv,ring:big?b:0,lit:b*0.6,v:Cm[i][j],vcol:C.gold,vs:0.8+0.2*nv});
+  const u=U(k);if(u>=0){const pr=eo(u/0.25),f=1-cl((u-0.35)/0.2),cx=bx(j)+s/2,cy=ay(i)+s/2,lx=lerp(cx,ax(0)+s*0.3,pr),ly=lerp(cy,by(0)+s*0.3,pr);
+   g.save();g.globalAlpha*=f;if(big){g.shadowColor='#fff';g.shadowBlur=10}g.strokeStyle='#ffffffd0';g.lineWidth=Math.max(1.5,s*0.045);g.lineCap='round';
+   g.beginPath();g.moveTo(cx,cy);g.lineTo(lx,cy);g.moveTo(cx,cy);g.lineTo(cx,ly);g.stroke();g.restore();
+   if(big){glowDot(lx,cy,s*0.08,'#fff',f);glowDot(cx,ly,s*0.08,'#fff',f)}}}
+ g.restore()}
+const hits=(e,[x1,y1,x2,y2])=>!(e.x+e.w<x1||e.x>x2||e.y+e.h<y1||e.y>y2);
+function swarmDraw(list,t0,a,dimBox,dimK){if(a<=0)return;for(const e of list){const q=tt-t0-e.t;if(q<0)break;mini(e,q,a*(dimK>0&&hits(e,dimBox)?1-0.88*dimK:1))}}
+// ---------- the main example: Falk's layout. A bottom-left, B above-right, C = AB in the space under B and right of A ----------
+const CS=120, GB=28, SW=N*CS+GB+P*CS, X0=W/2-SW/2-40, Y0=200;
+const AX=c=>X0+c*CS, AY=r=>Y0+N*CS+GB+r*CS;          // A's cells (and C's rows)
+const BX=c=>X0+N*CS+GB+c*CS, BY=r=>Y0+r*CS;          // B's cells (and C's columns)
+const CX=BX, CY=AY;
+const MAINBOX=[X0-110,Y0-20,X0+SW+200,Y0+(N+M)*CS+GB+20];
+const SW1=swarm('in',20261024,[FACE],1.4,0.93,96), SW2=swarm('out',777,[FACE,MAINBOX,[W/2-430,20,W/2+430,165],[W/2-520,915,W/2+440,985]],0.3,0.93,60);
+// the layout itself does the work: for result cell (i,j), the cells to its LEFT that belong to A, and ABOVE it that belong to B, paired in order
+function layoutTerms(i,j){const lefts=MA[i].map((v,c)=>({v,x:AX(c),y:AY(i)})).filter(q=>q.y==CY(i)&&q.x<CX(j)).sort((p,q)=>p.x-q.x);
+ const ups=MB.map((r,k)=>({v:r[j],x:BX(j),y:BY(k)})).filter(q=>q.x==CX(j)&&q.y<CY(i)).sort((p,q)=>p.y-q.y);
+ return lefts.map((q,k)=>[q.v,ups[k].v])}
+const ORDER=[[0,0],[0,1],[1,0],[1,1]];
+const EQY=948;
+function scMain(){
+ const l2=LK('we have our first'),l3=LK('draw it above'),l4=LK('implied space'),l5=LK('trace our finger'),l6=LK('sum them'),l7=LK('happy manual');
+ const D5=E[l5]-S[l5], D6=E[l6]-S[l6];
+ // timing of the worked cell (0,0) and the quick ones
+ const pL=eo((tt-at(l5,0.27))/(0.2*D5)), pU=eo((tt-at(l5,0.61))/(0.2*D5));
+ // the dot product is glossed: one equation, all at once, then the 13 drops in and the other cells fill fast
+ const eqA=ev(l6,0.3,0.5), fly=eo((tt-at(l6,0.78))/0.6);
+ const Q0=Math.max(E[l6]+0.3,at(l6,0.78)+0.9), QS=0.55, qs=c=>Q0+(c-1)*QS;   // quick cells 1..3 start
+ const done=c=>c==0?ease((fly-0.85)/0.15):ease((tt-qs(c)-0.3)/0.2);
+ const fade0=1-ease((tt-Q0+0.2)/0.4);                                  // the worked cell's highlights go away
+ const out7=1-ev(l7,0,0.6);
+ // highlights: lit[A/B r,c], ring[C i,j]
+ const litA=(r,c)=>{let l=0;if(r==0){const fx=lerp(CX(0)+CS/2,AX(0)+CS*0.35,pL);l=Math.max(l,cl((AX(c)+CS*0.8-fx)/50)*(pL>0?1:0)*fade0)}
+  for(let q=1;q<4;q++){const[i]=ORDER[q], k=ease((tt-qs(q))/0.12)*(1-ease((tt-qs(q)-0.45)/0.2));if(i==r)l=Math.max(l,k)}return l};
+ const litB=(r,c)=>{let l=0;if(c==0){const fy=lerp(CY(0)+CS/2,BY(0)+CS*0.35,pU);l=Math.max(l,cl((BY(r)+CS*0.8-fy)/50)*(pU>0?1:0)*fade0)}
+  for(let q=1;q<4;q++){const[,j]=ORDER[q], k=ease((tt-qs(q))/0.12)*(1-ease((tt-qs(q)-0.45)/0.2));if(j==c)l=Math.max(l,k)}return l};
+ const ringC=(i,j)=>{const q=ORDER.findIndex(o=>o[0]==i&&o[1]==j);
+  if(q==0)return ev(l5,0.06,0.4)*(1-ease((tt-at(l6,0.78)-0.6)/0.5));
+  return ease((tt-qs(q))/0.12)*(1-ease((tt-qs(q)-0.5)/0.25))};
+ // the quick cells: a line of light left and up from the cell, like in the swarm
+ for(let q=1;q<4;q++){const[i,j]=ORDER[q],u=tt-qs(q);if(u<0||u>0.7)continue;const pr=eo(u/0.25),f=1-cl((u-0.45)/0.25),cx=CX(j)+CS/2,cy=CY(i)+CS/2,lx=lerp(cx,AX(0)+CS*0.3,pr),ly=lerp(cy,BY(0)+CS*0.3,pr);
+  g.save();g.globalAlpha*=f;g.shadowColor='#fff';g.shadowBlur=16;g.strokeStyle='#ffffffd0';g.lineWidth=5;g.lineCap='round';g.beginPath();g.moveTo(cx,cy);g.lineTo(lx,cy);g.moveTo(cx,cy);g.lineTo(cx,ly);g.stroke();g.restore();
+  glowDot(lx,cy,9,'#fff',f);glowDot(cx,ly,9,'#fff',f)}
+ // A
+ const aIn=(r,c)=>ev(l2,0.1+0.07*(r*N+c),0.35);
+ brackets(AX(0),AY(0),N*CS,M*CS,C.a,ev(l2,0,0.5));
+ MA.forEach((row,r)=>row.forEach((v,c)=>cell(AX(c),AY(r),CS,C.a,{a:aIn(r,c),lit:litA(r,c),v,vs:0.7+0.3*eo(aIn(r,c)*1.4)})));
+ const la=ev(l2,0.5,0.6);
+ txt('A',AX(0)-58,AY(0)+M*CS/2-16,64,C.a,'center','bold',la);txt(`${M} × ${N}`,AX(0)-58,AY(0)+M*CS/2+34,26,C.dim,'center','',la);
+ // B: first drawn next to A (where you'd normally write it), then it slides up
+ const bIn=(r,c)=>ev(l3,0.12+0.05*(r*P+c),0.35), up=ev(l3,0.62,1.1);
+ const yNext=AY(0)+M*CS/2-N*CS/2+8, dy=lerp(yNext-Y0,0,up);
+ brackets(BX(0),BY(0)+dy,P*CS,N*CS,C.b,ev(l3,0.1,0.5));
+ MB.forEach((row,r)=>row.forEach((v,c)=>cell(BX(c),BY(r)+dy,CS,C.b,{a:bIn(r,c),lit:litB(r,c),v,vs:0.7+0.3*eo(bIn(r,c)*1.4)})));
+ const nx=ev(l3,0.3,0.5)*(1-ev(l3,0.6,0.4));
+ txt('next to it?',BX(0)+P*CS/2,yNext-48,36,C.dim,'center','',nx);
+ const lb=ev(l3,0.8,0.6);
+ txt('B',BX(P)+62,BY(0)+N*CS/2-16,64,C.b,'center','bold',lb);txt(`${N} × ${P}`,BX(P)+62,BY(0)+N*CS/2+34,26,C.dim,'center','',lb);
+ txt('above it  (and to the right)',BX(0)+P*CS/2,Y0-52,34,C.b,'center','',lb*(1-ev(l4,0,0.5)));
+ // C: the implied space
+ const cIn=ev(l4,0.2,0.7), pulse=(cIn>0?0.5+0.5*Math.sin((tt-at(l4,0.2))*5):0)*(1-ev(l5,0,0.6));
+ for(let i=0;i<M;i++)for(let j=0;j<P;j++){const q=ORDER.findIndex(o=>o[0]==i&&o[1]==j), dn=done(q);
+  if(dn<1)cell(CX(j),CY(i),CS,C.gold,{a:cIn*(1-dn),dash:0.5+0.5*pulse});
+  const r=ringC(i,j);
+  if(dn>0||r>0)cell(CX(j),CY(i),CS,C.gold,{a:Math.max(dn,r),ring:Math.max(r,dn*(1-cl((tt-(q?qs(q)+0.55:at(l6,0.78)+0.8))/0.5))),lit:0,v:dn>0?MC[i][j]:null,va:dn,vcol:C.gold,vs:0.8+0.2*eo(dn)})}
+ brackets(CX(0),CY(0),P*CS,M*CS,C.gold,cIn);
+ txt('the result',CX(P)+125,CY(0)+M*CS/2-34,36,C.gold,'center','bold',ev(l4,0.5,0.6)*(1-ev(l5,0,0.5)));
+ const lc=ev(l4,0.5,0.6);
+ txt('A·B',CX(P)+80,CY(0)+M*CS/2+(lc>0?lerp(18,-16,ev(l5,0,0.5)):0),ev(l5,0,0.5)>0.5?64:52,C.gold,'center','bold',lc);
+ txt(`${M} × ${P}`,CX(P)+80,CY(0)+M*CS/2+40,26,C.dim,'center','',ev(l5,0,0.5));
+ // the free bonus: the shapes check themselves (shown in the hold after "implied space")
+ const sk=after(l4,0.1,0.6)*(1-ev(l5,0.03,0.5));
+ if(sk>0){g.save();g.globalAlpha=sk*0.8;g.setLineDash([10,9]);g.strokeStyle=C.dim;g.lineWidth=2.5;rr(AX(0)+8,BY(0)+8,N*CS-16,N*CS-16,18);g.stroke();g.restore();
+  txt(`${N} × ${N}`,AX(0)+N*CS/2,BY(0)+N*CS/2-60,48,C.txt,'center','bold',sk);
+  txt('a square: A’s width',AX(0)+N*CS/2,BY(0)+N*CS/2+10,28,C.dim,'center','',sk);
+  txt('= B’s height',AX(0)+N*CS/2,BY(0)+N*CS/2+48,28,C.dim,'center','',sk);
+  txt('rows from A, columns from B',CX(0)+P*CS/2,EQY,34,C.dim,'center','',sk)}
+ // the finger: left through A's row, then up through B's column
+ const fa1=ev(l5,0.22,0.3)*(1-ease((tt-at(l5,0.27)-0.2*D5-0.2)/0.3)), fa2=ev(l5,0.56,0.3)*(1-ease((tt-at(l5,0.61)-0.2*D5-0.25)/0.3));
+ const fx=lerp(CX(0)+CS*0.62,AX(0)-CS*0.2,pL), fy=lerp(CY(0)+CS*0.38,BY(0)-CS*0.2,pU);
+ const trail=(x1,y1,x2,y2,col,a)=>{if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=18;g.strokeStyle=col;g.lineWidth=7;g.lineCap='round';g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.restore()};
+ trail(CX(0)+CS/2,CY(0)+CS/2,lerp(CX(0)+CS/2,AX(0)+CS*0.3,pL),CY(0)+CS/2,C.a,(pL>0?0.8:0)*fade0*(1-eqA*0.7));
+ trail(CX(0)+CS/2,CY(0)+CS/2,CX(0)+CS/2,lerp(CY(0)+CS/2,BY(0)+CS*0.3,pU),C.b,(pU>0?0.8:0)*fade0*(1-eqA*0.7));
+ finger(fx,CY(0)+CS/2,Math.PI,fa1,0.8,C.a);
+ finger(CX(0)+CS/2,fy,-Math.PI/2,fa2,0.8,C.b);
+ // the strip under the scheme: which row/column, then the multiply-and-sum
+ const rs=ev(l5,0.45,0.5)*(1-eqA);
+ rich([['row 1 of A',C.a,'bold'],['   ·   ',C.dim],['column 1 of B',C.b,'bold']],CX(0)-40,EQY,38,'center',rs*ev(l5,0.45,0.5));
+ if(eqA>0&&fade0>0){const segs=glossSegs(0,0), xs=richMeasure(segs,CX(0)-40,42);
+  segs.forEach((s,k)=>txt(s[0],xs[k],EQY,42,s[1],'center',s[2]||'',eqA*fade0*(k==segs.length-1?1-ease(fly*3):1)));
+  if(fly>0&&fly<1){const x=lerp(xs[segs.length-1],CX(0)+CS/2,fly), y=lerp(EQY,CY(0)+CS/2,fly)-Math.sin(Math.PI*fly)*90;txt(''+MC[0][0],x,y,lerp(42,53,fly),C.gold,'center','bold',1)}}}
+function glossSegs(i,j){const segs=[];layoutTerms(i,j).forEach(([x,y],k)=>{if(k)segs.push([' + ',C.dim]);segs.push([''+x,C.a,'bold'],['·',C.dim],[''+y,C.b,'bold'])});
+ segs.push(['  =  ',C.dim],[''+MC[i][j],C.gold,'bold']);return segs}
+function richMeasure(segs,x,sz){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));let X=x-ws.reduce((p,q)=>p+q,0)/2;return ws.map(w=>{const c=X+w/2;X+=w;return c})}
+function scIntro(){const l1=LK('on paper');
+ const k=ev(l1,0.05,0.7);
+ txt('a nice way to multiply matrices',W/2,92,62,C.txt,'center','bold',k);
+ txt('on paper',W/2,162,48,C.gold,'center','bold',ev(l1,0.55,0.6))}
+function scEnd(){const l7=LK('happy manual'), k=ev(l7,0,0.6);
+ txt('happy manual',W/2,64,58,C.gold,'center','bold',k);
+ txt('matrix multiplicating!',W/2,126,58,C.gold,'center','bold',ev(l7,0.3,0.6));
+ if(CREDIT){const c=after(l7,0.4,0.8);
+  rich([['this layout is known as ',C.dim],['Falk’s scheme',C.txt,'bold'],['  (Sigurd Falk, 1951)',C.dim]],W/2-40,EQY,32,'center',c)}}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ // the trick: a swarm of little A·B=C's under the intro; gone during the real explanation; back around the finished example at the end
+ const l1=LK('on paper'), l2=LK('we have our first'), l7=LK('happy manual');
+ const dive=ev(l2,0,0.9);
+ if(dive<1){g.save();const z=1+0.35*dive;g.translate(W/2,H/2);g.scale(z,z);g.translate(-W/2,-H/2);
+  swarmDraw(SW1,0.2,1-dive,[W/2-520,40,W/2+520,200],ev(l1,0,0.7));g.restore()}
+ if(tt>S[l7])swarmDraw(SW2,S[l7]+0.2,0.85,null,0);
+ g.save();g.globalAlpha=1-ev(l2,0,0.6);scIntro();g.restore();
+ if(t>S[l2]-1)scMain();
+ scEnd();
+ return cv}
+// the booth's frames per line: [key, [start, middle, end anim times]]
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+// ==== ENGINE END ====
+const SCENES=[['intro',0],['first matrix',2],['above',3],['the result',4],['finger',5],['multiply & sum',6],['happy',7]];
+const CAP=SCRIPT.map(([k,s],i)=>[S[i]-0.2,E[i]+0.2,s]);
+// checks: the layout's left/up pairing gives the real product, and the background chain's numbers are real products too
+const CHK={C:MC,layout:ORDER.every(([i,j])=>layoutTerms(i,j).reduce((s,[x,y])=>s+x*y,0)===MC[i][j]&&layoutTerms(i,j).length===N),
+ hand:JSON.stringify(MC)===JSON.stringify([[2*1+1*2+3*3,2*5+1*1+3*2],[1*1+4*2+2*3,1*5+4*1+2*2]]),
+ swarm:[...SW1,...SW2].every(e=>e.Cm.every((row,i)=>row.every((v,j)=>v===e.A[i].reduce((t,x,c)=>t+x*e.B[c][j],0))))};
+if(!(CHK.layout&&CHK.hand&&CHK.swarm))console.error('math check failed',JSON.stringify(CHK));
+document.getElementById('note').innerHTML=`draft 2 (Oct-24). ${SCRIPT.length} lines, ${T.toFixed(0)} s at the guessed pace. Every number is computed in the page: A·B = ${JSON.stringify(MC)}; the left/up pairing read off the layout gives the same numbers: <b>${CHK.layout}</b>; checked by hand: <b>${CHK.hand}</b>; the ${SW1.length}+${SW2.length} little A·B=C’s in the swarm, checked by a plain loop: <b>${CHK.swarm}</b>. The layout is known as Falk’s scheme (Sigurd Falk, 1951); the credit line at the end is optional (CREDIT=${CREDIT}).`;
+let capOn=false;
+function caption(t){const c=CAP.find(c=>t>=c[0]&&t<c[1]);return c?c[2]:''}
+function render(t){drawFrame(t);const s=caption(t);
+ if(capOn&&s){ctx.save();ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000c';const w=Math.min(1800,ctx.measureText(s).width);ctx.fillRect(W/2-w/2-24,H-84,w+48,62);ctx.fillStyle='#fff';ctx.fillText(s,W/2,H-42,1800);ctx.restore()}
+ capEl.textContent=s;timeEl.textContent=t.toFixed(1)+' / '+T.toFixed(1);scrub.value=t;
+ let ci=0;SCENES.forEach((c,i)=>{if(t>=S[c[1]]-GAP)ci=i});chapBtns.forEach((b,i)=>b.classList.toggle('on',i===ci))}
+const capEl=document.getElementById('cap'),timeEl=document.getElementById('time'),scrub=document.getElementById('scrub'),playB=document.getElementById('play');
+scrub.max=T;
+const chapBtns=SCENES.map(([n,l])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{t=Math.max(0,S[l]-0.3);render(t)};document.getElementById('chap').appendChild(b);return b});
+let t=0,playing=false,last=0;
+function frame(now){if(!playing)return;t+=(now-last)/1000;last=now;if(t>=T){t=T;setPlay(false)}render(t);if(playing)requestAnimationFrame(frame)}
+function setPlay(p){playing=p;playB.textContent=p?'❚❚ Pause':'▶ Play';if(p){if(t>=T)t=0;last=performance.now();requestAnimationFrame(frame)}}
+playB.onclick=()=>setPlay(!playing);
+scrub.oninput=()=>{t=+scrub.value;render(t)};
+document.getElementById('capon').onchange=e=>{capOn=e.target.checked;render(t)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setPlay(!playing)}
+ if(e.code==='ArrowRight'){t=Math.min(T,t+2);render(t)}if(e.code==='ArrowLeft'){t=Math.max(0,t-2);render(t)}});
+const hm=location.hash.match(/t=([\d.]+)/);if(hm)t=+hm[1];
+render(t);
+</script>
+</body></html>

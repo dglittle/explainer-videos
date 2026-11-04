@@ -1,0 +1,4 @@
+(Oct-24, after "the double-slit experiment as a quantum computation, v0.1" https://youtu.be/qdw7IvXof4k)
+"super! ok.. the final one in this quantum series on my mind for the moment is this: basically the same idea as the double slit one, except for the EPR paradox.. could you please give that a try? just the video first to look over and iterate on is fine, thanks!!"
+Context: Greg's earlier EPR video (../epr-video, https://youtu.be/toD7BWe4QeU): a phone app with three buttons (polarizer angles 0°, 22.5°, 45°),
+P(same) = cos²(angle between): 100% / 85.4% / 50%; written-down answers allow at most 75% same for top–bottom… (the triangle inequality).

@@ -1,0 +1,11 @@
+the human voice and face you see are real, and the idea and the story are his: understanding the double-slit experiment as a quantum computation. but.. the animation, the code that draws every frame, a couple of suggested lines, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the idea: the particle has two places it can go, like the two slits, so use two qubits, one per place, where a 1 means the particle is there. start with it at the top. a "slit" gate makes it 50/50 top or bottom. then the travel to the screen, where the waves fan out and overlap, is a "mix" gate that would flip a definite top or bottom only 25% of the time, and now the result is 93% top and 7% bottom: no longer equal, like the bright and dark stripes behind a real double slit. then add a third qubit as a spy, with a copy gate right after the slit: it always tells the truth about which way the particle went, and the result is 50/50 again, just like the stripes disappearing when you put a detector at the slits.
+
+the small "real experiment" panel computes its screen from the two slit paths: amplitudes added, then squared (stripes), or, with a detector, squared, then added (no stripes). every number on screen is computed by the page that draws it, and checked.
+
+(the circuit is a Mach–Zehnder interferometer, a cousin of the double slit.)
+
+previous videos: https://youtu.be/D7K6TvOLo7g (the Turing machine of quantum computation), https://youtu.be/SrnDeKmCIws (from circuit diagrams to vector × matrix)
+
+v0.1. still an attempt, to be improved upon.

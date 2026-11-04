@@ -1,0 +1,9 @@
+the hands and tennis balls you see are real, and the idea, the joke, the timing and the direction are his: a contact-juggling move, the 4-ball pyramid that spins in one hand. but.. the 3-d crystal balls and the red arrow, the music, and the editing were made by an AI (Claude), working from his description.
+
+it starts with the famous moment in Labyrinth (1986) where the Goblin King spins a pyramid of four crystal balls in his gloved hand while sending bubbles to Sarah. it wasn't David Bowie doing it: the juggler Michael Moschen crouched behind him, reached his own arm through, and did it without being able to see the balls (he's credited for "crystal ball manipulation"). the clip is shown briefly, small and muted, for commentary.
+
+the crystal balls are path traced in Blender (Cycles): four touching glass spheres, three on the floor and one on top, real refraction, reflection, shadows and caustics; the red ribbon arrow is a real object too, so you can see it bent through the glass. the music is a General MIDI choir played by FluidSynth, deliberately a little half-hearted.
+
+choir sound font: MuseScore_General.sf2 (MIT license): FluidR3 by Frank Wen, FluidR3Mono by Michael Cowgill, adaptation by S. Christian Collins.
+
+v0.1. still an attempt, to be improved upon.

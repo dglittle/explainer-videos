@@ -1,0 +1,14 @@
+You are helping Greg Little name a YouTube video. Brainstorm titles. No tools needed; just think and answer.
+
+CONTEXT
+- Greg's channel (@glittle312) is small and personal: short math/visual curiosities he makes with AI help. He versions videos like software: his recent color video is titled "seen reddish-green?, v0.2", and its description says "v0.2 (v0.1: <link>). still an attempt, to be improved upon." Lower-case, plain, curious tone.
+- The OLD video (published 2026-03-06): "Spinor Belt Trick — 720° on a Chessboard". 8 seconds, silent, loops. A rubber marble chessboard with a red knight in the middle; the knight's circle turns clockwise two full turns while the ring of board around it bends through 3-D (at one turn it's wrapped up like a ball) and ends perfectly flat. Its description starts: "Did you know you can rotate a circle within an elastic sheet clockwise twice completely, and come back to normal?"
+- The NEW video (~1 minute, Greg's own voice-over) frames it as a MAGIC TRICK. Script: "This is a kind of magic trick. The setup is that we have this rubber chessboard with a knight on it, and we want to do the following thing. We want to take this circle with the knight on it in the middle, [the disk lights up gold, is shown cut free and spun] and we're going to rotate it in place all the way around, twice. And this middle portion [the ring around it lights up blue] will bend like rubber during the rotation, but in the end, it will be relaxed and flat again, with no cheating. Nothing doing math stuff that couldn't happen in real life. So… do you believe me? Pause the video and try to think of whether you think this would be magical if it could happen. OK… here we go! [the trick plays: the board swirls, balloons into a ball at 360°, unwinds to flat at 720°] Tada!"
+- Background: this is the Dirac belt / plate trick; the rotation group SO(3) has a loop (one full turn) that can't be undone but two turns can; spinors (like electrons) need 720° to return to normal. The new video does NOT say any of that out loud — it's a pure "do you believe me? watch" magic trick.
+- Plan: the new video becomes v0.2, and the old one may be retitled to v0.1 (YouTube allows that).
+
+TASK
+1. Give ~15 title ideas for the NEW video, grouped into 3-4 styles (e.g. continuity with the old title; magic-trick / challenge hook; plain curious question; math-name-forward). Each must end with ", v0.2" or include "v0.2" naturally. Keep each under ~60 characters. Mark your top 3.
+2. For each of your top 3, the matching retitle for the OLD video (v0.1) so the pair reads as a series.
+3. One-line notes on traps: e.g. clickbait that over-promises, giving away the ending, words that confuse ("spinor" for laypeople), anything about how YouTube search/thumbnail text interacts.
+Answer in plain text, compact.

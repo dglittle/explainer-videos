@@ -1,0 +1,181 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>crystal cut: trim each section</title>
+<style>
+html,body{margin:0;background:#0b0e16;color:#dfe6f2;font:15px/1.4 system-ui,sans-serif}
+#app{max-width:980px;margin:0 auto;padding:8px 14px}
+h1{font-size:17px;margin:2px 0 8px;font-weight:600}
+#stage{position:relative;width:100%;aspect-ratio:16/9;max-height:50vh;margin:0 auto;background:#000;border-radius:8px;overflow:hidden}
+#stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;visibility:hidden}
+#stage video.on{visibility:visible}
+#clock{position:absolute;left:8px;top:6px;font:13px ui-monospace,monospace;background:#000a;padding:2px 6px;border-radius:5px}
+#tl{display:flex;gap:4px;margin:10px 0 4px;user-select:none;touch-action:none}
+.blk{position:relative;height:46px;background:#1a2133;border:1px solid #2f3b58;border-radius:6px;cursor:pointer;overflow:hidden}
+.blk.sel{border-color:#e8b04a}
+.keep{position:absolute;top:0;bottom:0;background:#3b4d78}
+.blk.sel .keep{background:#6a5524}
+.h{position:absolute;top:0;bottom:0;width:4px;margin-left:-2px;background:#ffd98a}
+.lab{position:absolute;left:6px;top:3px;font-size:12px;pointer-events:none;white-space:nowrap}
+.dur{position:absolute;left:6px;bottom:3px;font:11px ui-monospace,monospace;color:#c7d2e8;pointer-events:none}
+.ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;display:none}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.row button{padding:6px 10px;border-radius:7px;border:1px solid #33405a;background:#18203a;color:#dfe6f2;font:inherit;cursor:pointer}
+.row button.big{background:#173a26;border-color:#3f9a64;color:#a8f0c4;font-weight:600}
+.row button.save{background:#3a2f12;border-color:#a8822e;color:#ffd98a;font-weight:600}
+.mono{font-family:ui-monospace,monospace}
+#info{color:#cfd8e8}
+#note{color:#7d8aa3;font-size:12.5px;margin-top:6px}
+#saved{color:#a8f0c4}
+</style></head><body><div id="app">
+<h1>Trim each section (you can only make them shorter)</h1>
+<div id="stage"><div id="clock"></div></div>
+<div id="tl"></div>
+<div class="row">
+  <button class="big" id="playAll">▶ play all (with trims)</button>
+  <button id="playSec">▶ play this section</button>
+  <button id="stop">■ stop</button>
+  <span class="mono" id="total"></span>
+</div>
+<div class="row">
+  <span class="mono" id="secName" style="min-width:150px"></span>
+  IN <button data-n="in,-1">−1 frame</button><button data-n="in,1">+1 frame</button>
+  &nbsp; OUT <button data-n="out,-1">−1 frame</button><button data-n="out,1">+1 frame</button>
+  <button id="reset">reset section</button>
+</div>
+<div class="row"><span class="mono" id="info"></span></div>
+<div class="row"><button class="save" id="save">Save trims (downloads crystal-trims.json)</button><span id="saved"></span></div>
+<div id="note">Drag a gold edge in the timeline (or click near it) to trim; the picture shows that frame. Keys: space play all ·
+1–5 pick a section · ← → move IN one frame · shift+← → move OUT one frame · S play this section.
+Music in the preview is the current cue, shortened; the final render re-fits each cue to its new length (the second CGI's bloom
+stays on the arrow). Your trims are kept in this browser.</div>
+</div>
+<script>
+const FPS = 30;
+// Each section as in the current cut. audio: 'refit' = the cue starts at the section's (new) start; 'lock' = the cue stays
+// locked to the picture (the second CGI: the bloom lands on the arrow); null = silent. fade = fade-out at the end (s).
+const SECS = [
+  {key: 'a', name: 'Labyrinth',          v: 'edit/v-a.mp4', n: 177, au: 'edit/au-a.wav', mode: 'refit', fade: 0.08},
+  {key: 'b', name: 'CGI spin',           v: 'edit/v-b.mp4', n: 120, au: 'edit/au-b.wav', mode: 'refit', fade: 0.08},
+  {key: 'c', name: 'You: pretend fail',  v: 'edit/v-c.mp4', n: 70,  au: null,            mode: null,    fade: 0},
+  {key: 'd', name: 'CGI + arrow',        v: 'edit/v-d.mp4', n: 105, au: 'edit/au-d.wav', mode: 'lock',  fade: 0.08},
+  {key: 'e', name: 'You: real rotation', v: 'edit/v-e.mp4', n: 258, au: 'edit/au-e.wav', mode: 'refit', fade: 1.5},
+];
+const STORE = 'crystal-trims-v1', MIN = 6;                 // a section keeps at least 6 frames
+const $ = id => document.getElementById(id);
+try { const s = JSON.parse(localStorage.getItem(STORE) || '{}');
+  for (const c of SECS) { const t = s[c.key]; c.in = t ? t.in : 0; c.out = t ? t.out : c.n; } } catch (e) { for (const c of SECS) { c.in = 0; c.out = c.n; } }
+const fr = f => (f / FPS).toFixed(2);
+let sel = 0, playing = null;
+
+// media
+for (const c of SECS){
+  c.vid = document.createElement('video'); c.vid.src = c.v; c.vid.muted = true; c.vid.preload = 'auto'; c.vid.playsInline = true;
+  $('stage').append(c.vid);
+  if (c.au){ c.aud = new Audio(c.au); c.aud.preload = 'auto'; }
+}
+function show(i){ SECS.forEach((c, j) => c.vid.classList.toggle('on', j == i)); }
+function seekFrame(c, f){ c.vid.currentTime = (f + 0.5) / FPS; }   // middle of the frame, so the right one shows
+
+// timeline
+function buildTL(){
+  const tl = $('tl'); tl.innerHTML = '';
+  SECS.forEach((c, i) => {
+    const b = document.createElement('div'); b.className = 'blk' + (i == sel ? ' sel' : ''); b.style.flex = c.n + ' 1 0';
+    b.innerHTML = `<div class="keep"></div><div class="h hi"></div><div class="h ho"></div><div class="ph"></div>
+      <div class="lab">${i+1}. ${c.name}</div><div class="dur"></div>`;
+    c.blk = b; tl.append(b);
+    b.addEventListener('pointerdown', e => {
+      stop(); select(i); b.setPointerCapture(e.pointerId);
+      const f0 = frameAt(c, e), which = Math.abs(f0 - c.in) <= Math.abs(f0 - c.out) ? 'in' : 'out';
+      const mv = ev => setEdge(c, which, frameAt(c, ev));
+      mv(e);
+      const up = () => { b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', up); persist(); };
+      b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up);
+    });
+  });
+  draw();
+}
+function frameAt(c, e){ const r = c.blk.getBoundingClientRect(); return Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * c.n); }
+function setEdge(c, which, f){
+  if (which == 'in'){ c.in = Math.max(0, Math.min(f, c.out - MIN)); seekFrame(c, c.in); }
+  else { c.out = Math.min(c.n, Math.max(f, c.in + MIN)); seekFrame(c, c.out - 1); }
+  show(SECS.indexOf(c)); draw();
+}
+function draw(){
+  let tot = 0;
+  for (const c of SECS){
+    const k = c.blk.querySelector('.keep');
+    k.style.left = 100 * c.in / c.n + '%'; k.style.width = 100 * (c.out - c.in) / c.n + '%';
+    c.blk.querySelector('.hi').style.left = 100 * c.in / c.n + '%';
+    c.blk.querySelector('.ho').style.left = 100 * c.out / c.n + '%';
+    c.blk.querySelector('.dur').textContent = `${fr(c.out - c.in)} s` + (c.in || c.out < c.n ? ` (was ${fr(c.n)})` : '');
+    tot += c.out - c.in;
+  }
+  const orig = SECS.reduce((s, c) => s + c.n, 0);
+  $('total').textContent = `total ${fr(tot)} s (was ${fr(orig)} s)`;
+  const c = SECS[sel];
+  $('secName').textContent = `${sel+1}. ${c.name}`;
+  $('info').textContent = `IN frame ${c.in} (${fr(c.in)} s)   OUT frame ${c.out} (${fr(c.out)} s)   keeps ${c.out - c.in} frames = ${fr(c.out - c.in)} s of ${fr(c.n)} s`;
+}
+function select(i){ sel = i; SECS.forEach((c, j) => c.blk.classList.toggle('sel', j == i)); show(i); seekFrame(SECS[i], SECS[i].in); draw(); }
+function persist(){ const s = {}; for (const c of SECS) s[c.key] = {in: c.in, out: c.out, n: c.n}; localStorage.setItem(STORE, JSON.stringify(s)); }
+function nudge(which, d){ stop(); const c = SECS[sel]; setEdge(c, which, (which == 'in' ? c.in : c.out) + d); persist(); }
+
+// playback: one clock (performance.now) drives the sections; each video is corrected if it drifts; audio follows the section
+function stop(){
+  if (!playing) return;
+  playing = null;
+  for (const c of SECS){ c.vid.pause(); if (c.aud){ c.aud.pause(); } c.blk.querySelector('.ph').style.display = 'none'; }
+  $('clock').textContent = '';
+}
+function play(list){
+  stop();
+  let t = 0; const plan = list.map(i => { const c = SECS[i], d = (c.out - c.in) / FPS, p = {i, c, t0: t, d}; t += d; return p; });
+  for (const p of plan){ seekFrame(p.c, p.c.in); p.c.vid.pause(); }
+  const run = playing = {plan, total: t, start: performance.now() + 150, cur: -1};
+  (function tick(){
+    if (playing !== run) return;
+    const now = (performance.now() - run.start) / 1000;
+    if (now >= run.total){ stop(); select(sel); return; }
+    if (now < 0){ requestAnimationFrame(tick); return; }
+    let k = run.plan.findIndex(p => now < p.t0 + p.d);
+    const p = run.plan[k], c = p.c, local = now - p.t0;
+    if (k != run.cur){                                   // entering a new section
+      if (run.cur >= 0){ const q = run.plan[run.cur].c; q.vid.pause(); if (q.aud) q.aud.pause(); q.blk.querySelector('.ph').style.display = 'none'; }
+      run.cur = k; show(p.i);
+      c.vid.currentTime = c.in / FPS + local; c.vid.play();
+      if (c.aud){ c.aud.currentTime = (c.mode == 'lock' ? c.in / FPS : 0) + local; c.aud.volume = 1; c.aud.play(); }
+    }
+    const want = c.in / FPS + local;
+    if (Math.abs(c.vid.currentTime - want) > 0.08) c.vid.currentTime = want;
+    if (c.aud){                                          // fade out at the section's end, like the final render
+      const left = p.d - local; c.aud.volume = c.fade > 0 && left < c.fade ? Math.max(0, left / c.fade) : 1;
+    }
+    const ph = c.blk.querySelector('.ph'); ph.style.display = 'block'; ph.style.left = 100 * (c.in / FPS + local) * FPS / c.n + '%';
+    $('clock').textContent = `${now.toFixed(2)} / ${run.total.toFixed(2)} s`;
+    requestAnimationFrame(tick);
+  })();
+}
+
+$('playAll').onclick = () => play(SECS.map((_, i) => i));
+$('playSec').onclick = () => play([sel]);
+$('stop').onclick = () => { stop(); select(sel); };
+$('reset').onclick = () => { stop(); const c = SECS[sel]; c.in = 0; c.out = c.n; persist(); select(sel); };
+document.querySelectorAll('[data-n]').forEach(b => { const [w, d] = b.dataset.n.split(','); b.onclick = () => nudge(w, +d); });
+$('save').onclick = () => {
+  persist();
+  const s = {}; for (const c of SECS) s[c.key] = {name: c.name, in: c.in, out: c.out, n: c.n, in_s: +fr(c.in), out_s: +fr(c.out)};
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(s, null, 1)], {type: 'application/json'}));
+  a.download = 'crystal-trims.json'; a.click();
+  $('saved').textContent = ' saved: ' + SECS.map(c => `${c.key} ${fr(c.out - c.in)}s`).join(' · ');
+};
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey) return;
+  const k = e.key.toLowerCase();
+  if (k == ' '){ e.preventDefault(); playing ? (stop(), select(sel)) : play(SECS.map((_, i) => i)); }
+  else if (k == 'arrowleft' || k == 'arrowright'){ e.preventDefault(); nudge(e.shiftKey ? 'out' : 'in', k == 'arrowleft' ? -1 : 1); }
+  else if (k >= '1' && k <= '5'){ stop(); select(+k - 1); }
+  else if (k == 's') play([sel]);
+});
+buildTL(); select(0);
+</script></body></html>

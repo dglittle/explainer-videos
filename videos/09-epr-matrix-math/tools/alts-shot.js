@@ -1,0 +1,3 @@
+const puppeteer=require('puppeteer-core'),path=require('path');(async()=>{const b=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>m.type()=='error'&&errs.push(m.text()));
+await p.setViewport({width:1500,height:900});await p.goto('file://'+path.resolve(__dirname,process.argv[2]||'../alts.html'));await new Promise(r=>setTimeout(r,800));
+await p.screenshot({path:path.resolve(__dirname,process.argv[3]||'../chk/alts.png'),fullPage:true});console.log('errors',errs);await b.close()})();

@@ -1,0 +1,14 @@
+# media and generated files stay out (see README: "What's deliberately not here")
+node_modules/
+*.mp4
+*.webm
+*.mov
+*.wav
+*.m4a
+*.mp3
+*.sf2
+*.npy
+chk/
+key.txt
+token.json
+client_secret.json

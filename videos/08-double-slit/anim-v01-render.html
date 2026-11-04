@@ -1,0 +1,340 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The double-slit experiment as a quantum computation · animation v0.1</title>
+<style>
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;max-width:1000px;margin:30px auto;padding:0 20px;color:#222}
+h1{margin:0}.sub{color:#777;margin:4px 0 18px}
+#box{background:#000;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px #0003}
+canvas{display:block;width:100%;aspect-ratio:16/9}
+#bar{display:flex;align-items:center;gap:12px;margin-top:10px}
+#play{width:84px;font-size:15px;padding:6px 0;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+#scrub{flex:1}
+#time{font:14px ui-monospace,Menlo,monospace;color:#555;width:120px;text-align:right}
+#cap{min-height:3.2em;margin:12px 0;font-size:19px;color:#333;font-style:italic}
+#chap button{font-size:13px;margin:0 6px 6px 0;padding:3px 9px;border:1px solid #ccc;border-radius:12px;background:#f7f7f7;cursor:pointer}
+#chap button.on{background:#ffe9a8;border-color:#d9b24a}
+.note{color:#666;font-size:14px;border-top:1px solid #eee;margin-top:22px;padding-top:10px}
+label{font-size:14px;color:#555}
+</style></head><body>
+<h1>The double-slit experiment as a quantum computation</h1>
+<div class="sub">Animation v0.1, for your screenplay. Space = play/pause · ← → = 2 s back/forward · drag the scrubber. Every frame is drawn live. The timing is a guess (about 2.5 words a second); the final render stretches each line to fit your recorded voice.</div>
+<div id="box"><canvas id="c" width="1920" height="1080"></canvas></div>
+<div id="bar"><button id="play">▶ Play</button><input id="scrub" type="range" min="0" max="100" step="0.02" value="0"><span id="time">0.0</span></div>
+<div id="cap"></div>
+<div id="chap"></div>
+<label><input type="checkbox" id="capon"> subtitles inside the box</label>
+<div class="note" id="note"></div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// optional on-screen extras. Set any to false to drop it.
+const NOTE_TRAVEL=true;   // "travelling: the numbers don't change"
+const MIRROR=true;        // the small "real experiment" panel next to the circuit
+const NOTE_MZ=true;       // end card: "(this setup is a Mach–Zehnder interferometer, the double slit's cousin)"
+// ---------- the math (every number on screen is computed here) ----------
+// the particle is "on" the wire that holds the 1: top = state 10, bottom = state 01 (00 and 11 never happen: one particle)
+const NQ=3, R2=Math.SQRT1_2, CC=Math.sqrt(3)/2, SS=0.5;       // the mixing gate: √¾ and ½ (½² = 25%)
+const zeros=n=>[...Array(n)].map(()=>Array(n).fill(0)), eye=n=>zeros(n).map((r,i)=>r.map((_,j)=>i==j?1:0));
+const mmul=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,x,k)=>s+x*B[k][j],0)));
+const tr=A=>A[0].map((_,j)=>A.map(r=>r[j]));
+const vm=(v,A)=>A[0].map((_,j)=>v.reduce((s,x,k)=>s+x*A[k][j],0));     // row vector × matrix (as in the last two videos)
+const norm=v=>Math.sqrt(v.reduce((s,x)=>s+x*x,0));
+const onehot=(n,k)=>[...Array(n)].map((_,i)=>i==k?1:0);
+const HM=[[R2,R2],[R2,-R2]], CNM=[[1,0,0,0],[0,1,0,0],[0,0,0,1],[0,0,1,0]];   // (for the swarm's little circuits)
+// the two gates' little matrices on (top, bottom); rows = from, columns = to (row vectors: new = v·M)
+const SL=[[R2,R2],[R2,-R2]];                                   // the slit: top → half top, half bottom
+const MX2=[[CC,-SS],[SS,CC]];                                   // the mixing gate: keeps √¾, moves ½ (25%)
+const TOP=2, BOT=1;                                            // indices of 10 and 01
+function on2(m){const M=eye(4),ix=[TOP,BOT];for(let a=0;a<2;a++)for(let b=0;b<2;b++)M[ix[a]][ix[b]]=m[a][b];return M}   // 00 and 11 untouched
+const S4=on2(SL), B4=on2(MX2);
+const up=M=>{const R=zeros(8);for(let i=0;i<8;i++)for(let j=0;j<8;j++)if((i&1)==(j&1))R[i][j]=M[i>>1][j>>1];return R};   // add the spy wire, untouched
+const CP8=zeros(8);for(let i=0;i<8;i++)CP8[i][i^((i>>2)&1)]=1;                          // copy: spy ^= top
+// run 1 (no spy): 10 → slit → travel → mix
+const A0=onehot(4,TOP), A1=vm(A0,S4), A2=vm(A1,B4);
+// run 2 (with the spy): 100 → slit → copy → travel → mix
+const W0=onehot(8,4), W1=vm(W0,up(S4)), W2=vm(W1,CP8), W3=vm(W2,up(B4));
+const ptop=v=>v.reduce((s,x,i)=>s+((i>>(Math.log2(v.length)-1))&1?x*x:0),0), pbot=v=>v.reduce((s,x,i)=>s+((i>>(Math.log2(v.length)-2))&1?x*x:0),0);
+const pspy=v=>v.length==8?v.reduce((s,x,i)=>s+(i&1?x*x:0),0):0;
+// the real double slit, for the mirror panel: at height y on the screen, each slit's path brings an amplitude (a wave: size × e^(i·k·length)).
+// With nothing watching, the two amplitudes add, then square (stripes). With a which-slit detector, they square separately, then add (no stripes).
+const DS={L:150,d:22,k:0.36,sig:140};
+function slitAmp(y,sgn){const r=Math.hypot(DS.L,y-sgn*DS.d),m=Math.exp(-((y/DS.sig)**2))/Math.sqrt(2);return[m*Math.cos(DS.k*r),m*Math.sin(DS.k*r)]}
+const ISTRIPES=y=>{const a=slitAmp(y,1),b=slitAmp(y,-1);return(a[0]+b[0])**2+(a[1]+b[1])**2};
+const IPLAIN=y=>{const a=slitAmp(y,1),b=slitAmp(y,-1);return a[0]**2+a[1]**2+b[0]**2+b[1]**2};
+const YB=0, YD=(()=>{let y=0;while(ISTRIPES(y+0.25)<ISTRIPES(y))y+=0.25;return y})();      // walk down from the bright center to the first dark stripe   // a bright spot, and the dark spot next to it
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+// Greg's words (light cleanup). OPTIONAL lines are my suggestions: if skipped, the render plays their note silently
+const SCRIPT=[
+['very confusing',"I find understanding quantum mechanics in the real world very confusing. They talk about position being the conjugate of momentum, and I just don't get it.",1.0],
+['just matrix multiplication',"But quantum computation is just matrix multiplication. So I thought: could I understand something like the double-slit experiment in terms of quantum computation? And here's my attempt.",1.0],
+['split into two',"We'd like to start with one qubit, and have it split into two. But in quantum computation, we can't create or destroy qubits.",0.8],
+['top qubit is a 1',"So let's have 2 qubits, but we start knowing the top qubit is a 1, and the bottom one is a 0.",1.0],
+['randomizes which',"And then our first gate randomizes which qubit is a 1, like the double slit. Right now, if we measure, the result is a 50/50 chance of top or bottom being a 1.",1.6],
+['distance travelled',"Now let's simulate some distance travelled by the particle after going through the slit, so that it can have time to interfere with itself.",1.0],
+['25% chance',"And we'll represent the interference with this gate, that just has a 25% chance of flipping where the particle is.",1.8],
+['lo and behold',"But now if we do that, lo and behold, something strange happens: the probabilities of top and bottom are mysteriously no longer equal.",2.4],
+['interference pattern',"That's kind of like the interference pattern behind the double slit.",1.0],
+['bright stripes',"In the real experiment, the screen gets bright stripes where lots of particles land, and dark stripes where almost none do. Our top and bottom are like one bright spot and one dark spot.",3.0],
+['try to examine',"Next, let's try to examine which way the particle went.",0.8],
+['spy on',"We'll add a copy gate after the slit, to spy on whether the particle went that way, copying it down to a third qubit. So in the end, the third qubit will tell us which way the particle went.",1.0],
+['tells us the truth',"Well, if we do that, the third qubit tells us the truth about which way it went, but it no longer shows interference. Top and bottom are both 50% again.",1.6],
+['detector at the slits',"And that's just like the real double-slit experiment: if you put a detector at the slits, to see which one the particle goes through, the stripes go away.",5.0]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);                 // event f seconds after line i ends
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',a:'#4da3ff',b:'#ff9f43',ok:'#3ecf6e',ink:'#08121c'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const tw=(s,sz,wt='')=>{g.save();g.font=`${wt} ${sz}px ${FONT}`;const w=g.measureText(s).width;g.restore();return w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+// rich text: segs = [[text, color, weight]]; returns the x where each segment starts
+function rich(segs,x,y,sz,al='center',a=1){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;const xs=[];segs.forEach((s,i)=>{xs.push(X);txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]});return xs.map((v,i)=>v+ws[i]/2)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function dot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.5;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// a matrix cell: lit = 0..1 tint toward col; ring = 0..1 glowing outline
+function cell(x,y,s,col,{a=1,lit=0,ring=0,dash=0,v=null,va=1,vcol=C.txt,vs=1,only=false}={}){if(a<=0)return;const p=Math.max(3,s*0.05);
+ g.save();g.globalAlpha*=a;const ga=g.globalAlpha;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);
+ if(only){}else if(dash){g.setLineDash([s*0.09,s*0.07]);g.strokeStyle=col;g.globalAlpha=ga*dash;g.lineWidth=Math.max(1.5,s*0.025);g.stroke();g.globalAlpha=ga;g.setLineDash([])}
+ else{g.fillStyle=lit>0?mix(C.panel,col.length==7?col:C.gold,0.5*lit):C.panel;g.fill();g.strokeStyle=mix('#2a3a4a',col,0.35+0.65*lit);g.lineWidth=Math.max(1.5,s*0.02);g.stroke()}
+ if(ring>0){g.globalAlpha=ga*ring;g.shadowColor=col;g.shadowBlur=s*0.25;g.strokeStyle=col;g.lineWidth=s*0.045;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);g.stroke()}
+ g.restore();
+ if(v!=null&&va>0){g.save();g.translate(x+s/2,y+s/2);const k=vs;g.scale(k,k);txt(''+v,0,s*0.03,s*0.44,lit>0.5&&vcol==C.txt?'#fff':vcol,'center','bold',a*va);g.restore()}}
+// square brackets around a matrix
+function brackets(x,y,w,h,col,a=1){if(a<=0)return;const d=Math.min(22,w*0.08);g.save();g.globalAlpha*=a;g.strokeStyle=col;g.lineWidth=4;g.lineCap='round';g.lineJoin='round';
+ g.beginPath();g.moveTo(x+d-4,y-6);g.lineTo(x-4,y-6);g.lineTo(x-4,y+h+6);g.lineTo(x+d-4,y+h+6);g.moveTo(x+w-d+4,y-6);g.lineTo(x+w+4,y-6);g.lineTo(x+w+4,y+h+6);g.lineTo(x+w-d+4,y+h+6);g.stroke();g.restore()}
+// the "finger": an abstract glowing arrowhead, tip at (x,y), pointing along angle ang (a soft halo + a bright chevron)
+function finger(x,y,ang,a=1,sc=0.8,col='#fff'){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.rotate(ang);g.scale(sc,sc);
+ const h=g.createRadialGradient(-14,0,0,-14,0,46);h.addColorStop(0,col+'55');h.addColorStop(1,col+'00');g.fillStyle=h;g.beginPath();g.arc(-14,0,46,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=22;g.fillStyle=mix(col,'#ffffff',0.55);
+ g.beginPath();g.moveTo(0,0);g.lineTo(-40,-24);g.lineTo(-30,0);g.lineTo(-40,24);g.closePath();g.fill();
+ g.restore()}
+// ---------- small helpers ----------
+function rngS(seed){let s=seed%2147483647||1;return()=>(s=(s*16807)%2147483647)/2147483647}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+C.q='#ff6b9a'; C.bad='#ff5d5d';
+const WC=['#6fd0ff','#ffb36b','#a6ee7c'];                            // one color per wire (and per bit in the state names)
+const close=(a,b,e=1e-9)=>Math.abs(a-b)<e;
+// the numbers we write: 0, ±1, ±1/√2, ±½
+function fmt(x){if(close(x,0))return'0';const s=x<0?'−':'',a=Math.abs(x);return s+(close(a,1)?'1':close(a,R2)?'1/√2':close(a,0.5)?'½':a.toFixed(2))}
+// a state name, each bit in its wire's color
+function sname(k,x,y,sz,a=1,al='center',wt='',nb=NQ){if(a<=0)return;rich(k.toString(2).padStart(nb,'0').split('').map((b,w)=>[b,WC[w],wt]),x,y,sz,al,a)}
+function glowLine(pts,u,col,a=1,w=6){if(a<=0||u<=0)return;let L=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d}
+ let left=L*cl(u),X=pts[0][0],Y=pts[0][1];g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=18;g.strokeStyle=col;g.lineWidth=w;g.lineCap='round';g.lineJoin='round';g.beginPath();g.moveTo(X,Y);
+ for(let i=1;i<pts.length&&left>0;i++){const k=Math.min(1,left/seg[i-1]);X=lerp(pts[i-1][0],pts[i][0],k);Y=lerp(pts[i-1][1],pts[i][1],k);g.lineTo(X,Y);left-=seg[i-1]}
+ g.stroke();g.restore();glowDot(X,Y,w*1.4,'#fff',a)}
+// a number in a matrix/vector cell
+function num(x,y,s,v,col,a=1){if(a<=0)return;const z=close(v,0),f=fmt(v);txt(f,x+s/2,y+s/2+s*0.02,z?s*0.3:f.length>2?s*0.27:s*0.42,z?C.dim:col,'center',z?'':'bold',a*(z?0.45:1))}
+// ---------- the swarm: little circuits, each with its own matrix next to it (computed with the same expand rule) ----------
+const swCache={};
+function miniCircuit(r,d){const cols=3+Math.floor(r()*3),gs=[];
+ for(let c=0;c<cols;c++){if(d>1&&r()<0.45){const a=Math.floor(r()*d);let b=Math.floor(r()*(d-1));if(b>=a)b++;gs.push({name:'CNOT',wires:[a,b]})}else gs.push({name:['H','X','Z'][Math.floor(r()*3)],wires:[Math.floor(r()*d)]})}
+ const n=1<<d, b=(i,w)=>(i>>(d-1-w))&1, little={H:HM,X:[[0,1],[1,0]],Z:[[1,0],[0,-1]],CNOT:CNM};
+ let M=null;for(const G of gs){const E=zeros(n),ws=G.wires;for(let i=0;i<n;i++)for(let j=0;j<n;j++){if([...Array(d).keys()].every(w=>ws.includes(w)||b(i,w)==b(j,w)))E[i][j]=little[G.name][ws.reduce((s,w)=>s*2+b(i,w),0)][ws.reduce((s,w)=>s*2+b(j,w),0)]}
+  M=M?mmul(M,tr(E)):tr(E)}
+ return{gs,M,n}}
+function swarm(key,seed,keep,dt0,dec,s0){if(swCache[key])return swCache[key];const r=rngS(seed);
+ const out=[],boxes=keep.map(b=>b.slice());let t=0,s=s0;
+ for(let k=0;k<500&&s>=6;k++,s*=0.982){const d=s>=14?2+Math.floor(r()*3):2+Math.floor(r()*2),mc=miniCircuit(r,d);
+  const cw=(mc.gs.length+1)*s*1.3, h=(d-1)*s+s*1.2, ms=h/mc.n, w=cw+s*0.8+h, pad=Math.max(7,s*0.4);let ok=null;
+  for(let tr2=0;tr2<300&&!ok;tr2++){const x=20+r()*(W-40-w),y=20+r()*(H-40-h);if(boxes.every(([x1,y1,x2,y2])=>x+w+pad<x1||x>x2+pad||y+h+pad<y1||y>y2+pad))ok=[x,y]}
+  if(!ok)continue;
+  out.push({t,x:ok[0],y:ok[1],w,h,s,d,cw,ms,...mc,per:2+r()*1.5,ph:r()});boxes.push([ok[0],ok[1],ok[0]+w,ok[1]+h]);t+=Math.max(0.06,dt0*Math.pow(dec,out.length))}
+ return swCache[key]=out}
+function mini(e,q,a){if(a<=0||q<0)return;const{x,y,s,d,gs,M,n,cw,ms}=e,aIn=eo(q/0.4),y0=y+s*0.6,gx=c=>x+(c+0.9)*s*1.3;
+ const cyc=((q+e.ph*e.per)%e.per)/e.per, cur=x+cyc*cw;
+ g.save();g.globalAlpha*=a*aIn;
+ for(let w=0;w<d;w++){g.strokeStyle=WC[w%3];g.globalAlpha=a*aIn*0.7;g.lineWidth=Math.max(1,s*0.07);g.beginPath();g.moveTo(x,y0+w*s);g.lineTo(x+cw,y0+w*s);g.stroke()}
+ g.globalAlpha=a*aIn;
+ gs.forEach((G,c)=>{const X=gx(c),near=Math.max(0,1-Math.abs(cur-X)/(s*0.8));g.strokeStyle=mix('#7d8b99','#ffffff',near);g.fillStyle=mix(C.panel,'#3a4a5a',near);g.lineWidth=Math.max(1,s*0.06);
+  if(G.name=='CNOT'){const yc=y0+G.wires[0]*s,yt=y0+G.wires[1]*s,r=s*0.24;g.beginPath();g.moveTo(X,yc);g.lineTo(X,yt);g.stroke();g.beginPath();g.arc(X,yc,s*0.1,0,7);g.fillStyle=g.strokeStyle;g.fill();g.beginPath();g.arc(X,yt,r,0,7);g.stroke()}
+  else{const yy=y0+G.wires[0]*s,b=s*0.62;rr(X-b/2,yy-b/2,b,b,b*0.18);g.fill();g.stroke();if(s>=16)txt(G.name,X,yy+1,s*0.4,'#e8eef4','center','bold')}});
+ // the matrix: bright = big entry; gold = positive, pink = negative. It glows as the cursor finishes the diagram
+ const mx=x+cw+s*0.8, my=y, gl=0.55+0.45*Math.max(0,1-Math.abs(cyc-0.97)*6);
+ for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=M[i][j];if(Math.abs(v)<1e-9){if(ms>=6){g.fillStyle='#ffffff10';g.fillRect(mx+j*ms+0.5,my+i*ms+0.5,ms-1,ms-1)}continue}
+  g.globalAlpha=a*aIn*Math.abs(v)*gl;g.fillStyle=v>0?C.gold:C.q;g.fillRect(mx+j*ms+0.5,my+i*ms+0.5,ms-1,ms-1)}
+ g.restore()}
+const hits=(e,[x1,y1,x2,y2])=>!(e.x+e.w<x1||e.x>x2||e.y+e.h<y1||e.y>y2);
+function swarmDraw(list,t0,a,dimBox,dimK){if(a<=0)return;for(const e of list){const q=tt-t0-e.t;if(q<0)break;mini(e,q,a*(dimK>0&&hits(e,dimBox)?1-0.88*dimK:1))}}
+// ---------- the stage ----------
+const LP=70, X0=250, XE=1200, WY=[250,370,490], SLX=390, CPX=490, MXX=990;
+const SW1=swarm('in',20261026,[FACE,[W/2-760,30,W/2+760,215]],0.7,0.93,30);
+const ENDBOX=[W/2-700,250,W/2+560,760];
+const SW2=swarm('out',4141,[FACE,ENDBOX],0.2,0.93,24);
+// the two runs: which gates are in the diagram, where, and the matrices (as row-vector matrices)
+const RUN1=[{x:SLX,M:S4},{x:MXX,M:B4}], RUN2=[{x:SLX,M:up(S4)},{x:CPX,M:CP8},{x:MXX,M:up(B4)}];
+function stateAt(x,run){let v=run==1?A0.slice():W0.slice();for(const G of(run==1?RUN1:RUN2))if(x>G.x)v=vm(v,G.M);return v}
+const pWire=(v,w)=>w==0?ptop(v):w==1?pbot(v):pspy(v);
+// the cursor ("now", moving left to right through the diagram): keyframes [time, x], per run
+function cursor(t){const l4=LK('top qubit is a 1'),l5=LK('randomizes which'),l6=LK('distance travelled'),l8=LK('lo and behold'),l11=LK('spy on'),l12=LK('tells us the truth');
+ const K1=[[at(l4,0.35),X0+14],[at(l5,0.15),X0+14],[at(l5,0.42),SLX+90],[at(l6,0.15),SLX+90],[E[l6]+0.6,MXX-90],[at(l8,0.12),MXX-90],[at(l8,0.42),XE-40]];
+ const K2=[[at(l11,0.25),X0+14],[at(l11,0.6),X0+14],[at(l12,0.3),XE-40]];
+ const run=t>=K2[0][0]?2:1, K=run==1?K1:K2;if(t<K[0][0])return{run,x:K[0][0],a:0};
+ let x=K[K.length-1][1];for(let i=1;i<K.length;i++)if(t<K[i][0]){x=lerp(K[i-1][1],K[i][1],ease((t-K[i-1][0])/(K[i][0]-K[i-1][0])));break}
+ const a=run==1?ease((t-K1[0][0])/0.4)*(1-ease((t-K2[0][0]+0.4)/0.4)):ease((t-K2[0][0])/0.4);return{run,x,a}}
+function drawWires(nw,a,spyA){const names=['top','bottom','spy'],kets=['|1⟩','|0⟩','|0⟩'];
+ for(let w=0;w<3;w++){const wa=a*(w<2?1:spyA);if(wa<=0)continue;g.save();g.globalAlpha*=wa*0.8;g.strokeStyle=WC[w];g.lineWidth=3;g.lineCap='round';g.beginPath();g.moveTo(X0,WY[w]);g.lineTo(XE,WY[w]);g.stroke();g.restore();
+  txt(names[w],LP,WY[w],30,WC[w],'left','bold',wa);txt(kets[w],X0-14,WY[w],30,WC[w],'right','',wa)}}
+function gateBox(x,label,sub,col,a,lit=0){if(a<=0)return;const y0=WY[0]-44,h=WY[1]-WY[0]+88,w=86;g.save();g.globalAlpha*=a;
+ if(lit>0){g.save();g.globalAlpha*=lit;g.shadowColor=col;g.shadowBlur=36;g.fillStyle=col+'44';rr(x-w/2,y0,w,h,14);g.fill();g.restore()}
+ rr(x-w/2,y0,w,h,14);g.fillStyle=C.panel;g.fill();g.strokeStyle=col;g.lineWidth=3;g.stroke();
+ txt(label,x,(WY[0]+WY[1])/2-(sub?14:0),28,col,'center','bold');if(sub)txt(sub,x,(WY[0]+WY[1])/2+22,22,C.dim,'center','');g.restore()}
+function copyGate(x,a){if(a<=0)return;g.save();g.globalAlpha*=a;const r=18;g.strokeStyle='#e8eef4';g.lineWidth=3;g.beginPath();g.moveTo(x,WY[0]);g.lineTo(x,WY[2]+r);g.stroke();
+ g.fillStyle='#e8eef4';g.beginPath();g.arc(x,WY[0],8,0,7);g.fill();g.beginPath();g.arc(x,WY[2],r,0,7);g.fillStyle=C.panel;g.fill();g.stroke();
+ g.beginPath();g.moveTo(x-r,WY[2]);g.lineTo(x+r,WY[2]);g.moveTo(x,WY[2]-r);g.lineTo(x,WY[2]+r);g.stroke();g.restore();txt('copy',x,WY[2]+44,22,C.dim,'center','',a)}
+// the particle: each wire glows with the chance the particle is on it (behind "now"), plus a bright blob at "now"
+function drawParticle(c,nw){if(c.a<=0)return;for(let w=0;w<nw;w++){
+  for(let x=X0+4;x<c.x;x+=8){const p=pWire(stateAt(x,c.run),w);if(p<1e-3)continue;g.save();g.globalAlpha*=c.a*p*0.55;g.strokeStyle='#fff';g.shadowColor=WC[w];g.shadowBlur=12;g.lineWidth=5;g.beginPath();g.moveTo(x,WY[w]);g.lineTo(Math.min(x+8,c.x),WY[w]);g.stroke();g.restore()}
+  const p=pWire(stateAt(c.x,c.run),w);if(p>1e-3){const gr=g.createRadialGradient(c.x,WY[w],0,c.x,WY[w],34);gr.addColorStop(0,'#ffffff');gr.addColorStop(0.35,WC[w]);gr.addColorStop(1,WC[w]+'00');g.save();g.globalAlpha*=c.a*Math.min(1,0.15+p);g.fillStyle=gr;g.beginPath();g.arc(c.x,WY[w],34*(0.5+0.5*Math.sqrt(p)),0,7);g.fill();g.restore()}}}
+// a little 2×2 matrix on (top, bottom)
+function little(x,y,m,col,a,title){if(a<=0)return;const s=58,lab=['top','bot'];for(let r=0;r<2;r++)for(let c=0;c<2;c++){cell(x+c*s,y+r*s,s,col,{a});num(x+c*s,y+r*s,s,m[r][c],'#fff',a)}
+ brackets(x,y,2*s,2*s,col,a);for(let k=0;k<2;k++){txt(lab[k],x-10,y+k*s+s/2,18,WC[k],'right','bold',a);txt(lab[k],x+k*s+s/2,y+2*s+16,18,WC[k],'center','bold',a)}
+ if(title)txt(title,x+s,y-22,20,C.dim,'center','',a)}
+// the vector row (bottom), and the "if we measure now" bars (right)
+function vecRow(v,a,nb){if(a<=0)return;const s=nb==2?72:62,x0=LP+60,y=800;txt('the vector:',x0-10,y-30,22,C.dim,'left','',a);
+ v.forEach((x,i)=>{cell(x0+i*s,y,s,C.gold,{a});num(x0+i*s,y,s,x,C.gold,a);sname(i,x0+i*s+s/2,y+s+20,22,a,'center','',nb)})}
+function bars(v,a,spyA){if(a<=0)return;const x0=1300,y0=190;txt('if we measure now:',x0,y0,26,C.dim,'left','',a);
+ [['top',ptop(v)],['bottom',pbot(v)],['spy',pspy(v)]].forEach(([n,p],k)=>{const ka=a*(k<2?1:spyA);if(ka<=0)return;const y=y0+56+k*64;
+  txt(n,x0,y,26,WC[k],'left','bold',ka);g.save();g.globalAlpha*=ka;rr(x0+110,y-14,200,28,7);g.fillStyle='#ffffff14';g.fill();rr(x0+110,y-14,Math.max(4,200*p),28,7);g.fillStyle=WC[k];g.fill();g.restore();
+  txt(`${(p*100).toFixed(p>0.995||p<0.005||close(p,0.5,1e-6)?0:1)}%`,x0+320,y,26,C.txt,'left','bold',ka)})}
+function scMain(){
+ const l3=LK('split into two'),l4=LK('top qubit is a 1'),l5=LK('randomizes which'),l6=LK('distance travelled'),l7=LK('25% chance'),l8=LK('lo and behold'),l9=LK('bright stripes'),
+  l10=LK('interference pattern'),l11=LK('try to examine'),l12=LK('spy on'),l13=LK('tells us the truth'),l14=LK('detector at the slits');
+ const out=1-ev(l14,0.85,0.8);if(out<=0)return;g.save();g.globalAlpha*=out;
+ const c=cursor(tt), wa=ev(l4,0,0.6), spyA=ev(l11,0.4,0.6), nw=c.run==2?3:2;
+ drawWires(3,wa,spyA);
+ // gates
+ const near=x=>Math.max(0,1-Math.abs(c.x-x)/60)*c.a;
+ gateBox(SLX,'slit','',C.q,ev(l5,0,0.4),near(SLX));
+ gateBox(MXX,'mix','25%',C.a,ev(l7,0.15,0.5),near(MXX));
+ copyGate(CPX,ev(l12,0.12,0.5));
+ // travel
+ const tv=ev(l6,0.1,0.6);
+ if(tv>0){g.save();g.globalAlpha*=tv*0.7;g.strokeStyle=C.dim;g.lineWidth=2;g.setLineDash([6,8]);const y=WY[0]-62;g.beginPath();g.moveTo(SLX+70,y);g.lineTo(MXX-70,y);g.stroke();g.restore();
+  txt('travel',(SLX+MXX)/2,WY[0]-80,24,C.dim,'center','',tv)}
+ drawParticle(c,nw);
+ // the little matrices under the gates
+ const insA=1;
+ little(SLX-58,560,SL,C.q,ev(l5,0.35,0.5)*insA*(1-ev(l11,0,0.5)),'slit');
+ little(MXX-58,560,MX2,C.a,ev(l7,0.45,0.5)*insA*(1-ev(l11,0,0.5)),'mix');
+ txt(`a definite top or bottom flips with (½)² = ${(MX2[0][1]**2*100).toFixed(0)}%`,MXX+90,720,22,C.dim,'center','',ev(l7,0.7,0.5)*insA*(1-ev(l8,0.3,0.5)));
+ if(NOTE_TRAVEL)txt('travelling: the numbers don’t change',(SLX+MXX)/2,600,24,C.dim,'center','',ev(l6,0.5,0.6)*(1-ev(l7,0.1,0.5)));
+ // the vector and the bars, read at "now"
+ const v=stateAt(c.x,c.run), vA=c.a*ev(l4,0.3,0.5);
+ vecRow(v,vA,c.run==2?3:2);
+ bars(v,c.a*ev(l5,0.5,0.5),spyA*(c.run==2?1:0));
+ // "?!"
+ const q=ev(l8,0.5,0.4)*(1-ev(l9,0.2,0.5));txt('?!',1780,250,80,C.gold,'center','bold',q);
+  // the real experiment, mirrored next to the circuit
+ if(MIRROR)mirror(c);
+ // the spy run's notes
+ const a13=ev(l13,0.2,0.5)*(1-ev(l14,0,0.5)), agree=W2.every((x,i)=>close(x,0)||((i>>2)&1)==(i&1));
+ rich([['the spy = the path at the slit, every time  ',C.dim,''],[agree?'✓':'✗',C.ok,'bold']],(X0+XE)/2,600,26,'center',a13);
+ g.restore()}
+// the mirror panel: source, two slits, screen; the screen fills in when the circuit's particle passes the mix gate
+function mirror(c){const l5=LK('randomizes which'),l9=LK('bright stripes'),l10=LK('interference pattern'),l12=LK('spy on'),l14=LK('detector at the slits');
+ const a=ev(l5,0.3,0.6)*(1-ev(l14,0.85,0.6));if(a<=0)return;
+ const sx=1320,wx=1410,scx=1515,cy=625,run2=c.run==2,past=ease((c.x-MXX)/80)*c.a,eye=run2?ev(l12,0.12,0.5):0;
+ txt('the real experiment:',1300,452,22,C.dim,'left','',a);
+ g.save();g.globalAlpha*=a;glowDot(sx,cy,9,C.gold,1);
+ g.fillStyle='#8a99a8';g.fillRect(wx-6,cy-150,12,150-DS.d-9);g.fillRect(wx-6,cy-DS.d+9,12,2*DS.d-18);g.fillRect(wx-6,cy+DS.d+9,12,150-DS.d-9);
+ g.strokeStyle='#ffffff30';g.lineWidth=1.5;g.strokeRect(scx,cy-150,24,300);
+ // the screen: stripes (run 1) or a plain blob (run 2, with the detector), from the formulas above
+ const mx=ISTRIPES(0),I=run2?IPLAIN:ISTRIPES;
+ if(past>0)for(let y=-148;y<148;y+=2){const p=I(y)/mx;g.fillStyle=`rgba(255,240,200,${Math.min(1,p)*past})`;g.fillRect(scx+1,cy+y,22,2)}
+ g.restore();
+ // the detector at the slits (an eye-ish ring), in the spy run
+ if(eye>0){g.save();g.globalAlpha*=a*eye;g.strokeStyle=WC[2];g.lineWidth=3;g.beginPath();g.ellipse(wx+30,cy-60,16,10,0,0,7);g.stroke();g.fillStyle=WC[2];g.beginPath();g.arc(wx+30,cy-60,4,0,7);g.fill();g.restore();
+  txt('detector',wx+30,cy-84,18,WC[2],'center','',a*eye)}
+ // top ↔ a bright spot, bottom ↔ a dark spot
+ const mk=ev(l10,0.2,0.5)*past;
+ if(mk>0)[[YB,0,'top'],[YD,1,'bottom']].forEach(([y,w,n])=>{const Y=cy+(w?1:-1)*0+y*(w?1:1);g.save();g.globalAlpha*=a*mk;g.fillStyle=WC[w];g.beginPath();g.moveTo(scx+28,cy+y);g.lineTo(scx+40,cy+y-7);g.lineTo(scx+40,cy+y+7);g.fill();g.restore();txt(n,scx+44,cy+y,18,WC[w],'left','bold',a*mk)});
+ const cap=run2?'a detector at the slits: no stripes':'bright and dark stripes';
+ txt(cap,1300,cy+180,20,C.dim,'left','',a*past)}
+// the double-slit cartoon (intro): a source, a wall with two slits, a screen with stripes from the same formula
+function cartoon(a){if(a<=0)return;const cx=W/2,cy=600;g.save();g.globalAlpha*=a;
+ glowDot(cx-380,cy,12,C.gold,1);
+ g.fillStyle='#8a99a8';g.fillRect(cx-60,cy-200,16,150);g.fillRect(cx-60,cy-30,16,60);g.fillRect(cx-60,cy+50,16,150);
+ for(let k=0;k<6;k++){g.strokeStyle=`rgba(255,209,102,${0.35-k*0.05})`;g.lineWidth=2;g.beginPath();g.arc(cx-380,cy,40+k*55,-0.5,0.5);g.stroke()}
+ for(const sy of[-40,40])for(let k=0;k<5;k++){g.strokeStyle=`rgba(255,209,102,${0.3-k*0.05})`;g.beginPath();g.arc(cx-52,cy+sy,40+k*60,-0.9,0.9);g.stroke()}
+ for(let k=0;k<80;k++){const y=cy-200+k*5,p=ISTRIPES((y-cy)*0.75)/ISTRIPES(0);g.fillStyle=`rgba(255,240,200,${p})`;g.fillRect(cx+300,y,22,5)}
+ g.restore();txt('source',cx-380,cy+40,20,C.dim,'center','',a);txt('two slits',cx-52,cy+230,20,C.dim,'center','',a);txt('screen',cx+311,cy+230,20,C.dim,'center','',a)}
+function scIntro(){const l1=LK('very confusing'),l2=LK('just matrix multiplication'),l3=LK('split into two'),a=1-ev(l2,0,0.6);
+ txt('understanding quantum mechanics',W/2,90,62,C.txt,'center','bold',ev(l1,0.05,0.7)*a);
+ txt('with quantum computation',W/2,160,48,C.gold,'center','bold',ev(l1,0.4,0.6)*a);
+ const b=ev(l2,0,0.6)*(1-ev(l3,0.1,0.6));
+ txt('the double-slit experiment',W/2,120,56,C.txt,'center','bold',ev(l2,0.3,0.6)*b);
+ txt('as a quantum computation',W/2,190,44,C.gold,'center','bold',ev(l2,0.5,0.6)*b);
+ cartoon(ev(l2,0.4,0.8)*(1-ev(l3,0.1,0.6)));
+ // "split into two": one qubit can't become two
+ const s=ev(l3,0.2,0.5)*(1-ev(LK('top qubit is a 1'),0,0.5));
+ if(s>0){const x0=W/2-260,y0=470,sp=ease((tt-at(l3,0.25))/0.8);glowDot(x0,y0,16,WC[0],s);
+  for(const dy of[-90,90]){const x1=lerp(x0,x0+420,sp),y1=lerp(y0,y0+dy,sp);g.save();g.globalAlpha*=s*0.6;g.setLineDash([8,8]);g.strokeStyle=C.dim;g.lineWidth=2;g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke();g.restore();glowDot(x1,y1,12,WC[0],s*sp*0.7)}
+  const x=ev(l3,0.6,0.4)*s;g.save();g.globalAlpha*=x;g.strokeStyle=C.bad;g.lineWidth=8;g.lineCap='round';g.beginPath();g.moveTo(x0+170,y0-50);g.lineTo(x0+270,y0+50);g.moveTo(x0+270,y0-50);g.lineTo(x0+170,y0+50);g.stroke();g.restore();
+  txt('one qubit → two?',W/2,y0+180,40,C.txt,'center','bold',s);txt('in quantum computation, qubits can’t be created or destroyed',W/2,y0+234,30,C.dim,'center','',x)}}
+function scEnd(){const l14=LK('detector at the slits'),k=ev(l14,0.9,0.7),cxm=(ENDBOX[0]+ENDBOX[2])/2;
+ txt('the circuit  ↔  the real double slit',cxm,300,46,C.txt,'center','bold',k);
+ const rows=[['the slit gate','two slits'],['the mix gate','the paths meeting at the screen'],[`${(ptop(A2)*100).toFixed(0)}% / ${(pbot(A2)*100).toFixed(0)}%`,'bright and dark stripes'],['the spy (a copy gate)','a detector at the slits'],[`${(ptop(W3)*100).toFixed(0)}% / ${(pbot(W3)*100).toFixed(0)}%`,'the stripes go away']];
+ rows.forEach(([a,b],i)=>{const kk=after(l14,0.3+i*0.35,0.6),y=380+i*56;txt(a,cxm-30,y,32,C.gold,'right','bold',kk);txt('↔',cxm,y,32,C.dim,'center','',kk);txt(b,cxm+30,y,32,C.txt,'left','',kk)});
+ if(NOTE_MZ)txt('(this setup is a Mach–Zehnder interferometer, a cousin of the double slit)',cxm,700,24,C.dim,'center','',after(l14,2.2,0.7))}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ const l1=LK('very confusing'),l2=LK('just matrix multiplication'),l14=LK('detector at the slits');
+ const dive=ev(l2,0,0.9);
+ if(dive<1){g.save();const z=1+0.35*dive;g.translate(W/2,H/2);g.scale(z,z);g.translate(-W/2,-H/2);swarmDraw(SW1,0.2,1-dive,[W/2-760,30,W/2+760,215],ev(l1,0.05,0.7));g.restore()}
+ if(tt>at(l14,0.85))swarmDraw(SW2,at(l14,0.85)+0.3,0.8,null,0);
+ scIntro();
+ if(t>S[LK('top qubit is a 1')]-1)scMain();
+ scEnd();
+ return cv}
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+// ==== ENGINE END ====
+const SCENES=[['intro',0],['the attempt',1],['split?',2],['two qubits',3],['the slit',4],['travel',5],['mix 25%',6],['not equal?!',7],['interference',8],['stripes (opt.)',9],['spy',10],['copy gate',11],['50/50 again',12],['detector (opt.)',13]];
+const CAP=SCRIPT.map(([k,s],i)=>[S[i]-0.2,E[i]+0.2,s]);
+const meq=(A,B)=>A.every((r,i)=>r.every((x,j)=>close(x,B[i][j])));
+const CHK={
+ unitary:[S4,B4,up(S4),up(B4),CP8].every(M=>meq(mmul(M,tr(M)),eye(M.length))),
+ slit:close(ptop(A1),0.5)&&close(pbot(A1),0.5),
+ flip25:close(vm(onehot(4,TOP),B4)[BOT]**2,0.25)&&close(vm(onehot(4,BOT),B4)[TOP]**2,0.25),
+ interference:close(ptop(A2),(1+2*CC*SS)/2)&&!close(ptop(A2),0.5)&&close(ptop(A2)+pbot(A2),1),
+ mirror:ISTRIPES(YB)>0.9*ISTRIPES(0)&&ISTRIPES(YD)<0.1*ISTRIPES(0)&&Math.abs(IPLAIN(YB)/IPLAIN(YD)-1)<0.15,
+ oneParticle:[A0,A1,A2].every(v=>close(v[0],0)&&close(v[3],0))&&[W0,W1,W2,W3].every(v=>[0,1,6,7].every(i=>close(v[i],0))),
+ spyTruth:W2.every((x,i)=>close(x,0)||((i>>2)&1)==(i&1)),
+ spy5050:close(ptop(W3),0.5)&&close(pbot(W3),0.5),
+ norms:[A0,A1,A2,W0,W1,W2,W3].every(v=>close(norm(v),1)),
+ swarm:[...SW1,...SW2].every(e=>meq(mmul(e.M,tr(e.M)),eye(e.n)))};
+const BAD=Object.entries(CHK).filter(([k,v])=>!v).map(([k])=>k);
+if(BAD.length)console.error('math check failed: '+BAD.join(', '));
+const pc=x=>(x*100).toFixed(1)+'%';
+document.getElementById('note').innerHTML=`draft 2 (Oct-24, mirror the real experiment). ${SCRIPT.length} lines (Greg's words; 'bright stripes' and 'detector at the slits' are my OPTIONAL suggestions), ${T.toFixed(0)} s at the guessed pace. Every number is computed in the page and re-checked: all gates unitary <b>${CHK.unitary}</b>; after the slit 50/50 <b>${CHK.slit}</b>; the mix gate flips a definite top or bottom 25% of the time <b>${CHK.flip25}</b>; after slit + mix: top ${pc(ptop(A2))}, bottom ${pc(pbot(A2))} <b>${CHK.interference}</b>; always exactly one particle <b>${CHK.oneParticle}</b>; the spy equals the path at the slit <b>${CHK.spyTruth}</b>; with the spy, 50/50 again <b>${CHK.spy5050}</b>; the mirror panel's screen (two slit paths, amplitudes added): a bright spot at the 'top' mark, a dark spot at the 'bottom' mark, and with the detector both about equal <b>${CHK.mirror}</b>; lengths stay 1 <b>${CHK.norms}</b>; swarm circuits unitary <b>${CHK.swarm}</b>. Extras: NOTE_TRAVEL=${NOTE_TRAVEL}, MIRROR=${MIRROR}, NOTE_MZ=${NOTE_MZ}.`;
+let capOn=false;
+function caption(t){const c=CAP.find(c=>t>=c[0]&&t<c[1]);return c?c[2]:''}
+function render(t){drawFrame(t);const s=caption(t);
+ if(capOn&&s){ctx.save();ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000c';const w=Math.min(1800,ctx.measureText(s).width);ctx.fillRect(W/2-w/2-24,H-84,w+48,62);ctx.fillStyle='#fff';ctx.fillText(s,W/2,H-42,1800);ctx.restore()}
+ capEl.textContent=s;timeEl.textContent=t.toFixed(1)+' / '+T.toFixed(1);scrub.value=t;
+ let ci=0;SCENES.forEach((c,i)=>{if(t>=S[c[1]]-GAP)ci=i});chapBtns.forEach((b,i)=>b.classList.toggle('on',i===ci))}
+const capEl=document.getElementById('cap'),timeEl=document.getElementById('time'),scrub=document.getElementById('scrub'),playB=document.getElementById('play');
+scrub.max=T;
+const chapBtns=SCENES.map(([n,l])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{t=Math.max(0,S[l]-0.3);render(t)};document.getElementById('chap').appendChild(b);return b});
+let t=0,playing=false,last=0;
+function frame(now){if(!playing)return;t+=(now-last)/1000;last=now;if(t>=T){t=T;setPlay(false)}render(t);if(playing)requestAnimationFrame(frame)}
+function setPlay(p){playing=p;playB.textContent=p?'❚❚ Pause':'▶ Play';if(p){if(t>=T)t=0;last=performance.now();requestAnimationFrame(frame)}}
+playB.onclick=()=>setPlay(!playing);
+scrub.oninput=()=>{t=+scrub.value;render(t)};
+document.getElementById('capon').onchange=e=>{capOn=e.target.checked;render(t)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setPlay(!playing)}
+ if(e.code==='ArrowRight'){t=Math.min(T,t+2);render(t)}if(e.code==='ArrowLeft'){t=Math.max(0,t-2);render(t)}});
+const hm=location.hash.match(/t=([\d.]+)/);if(hm)t=+hm[1];
+render(t);
+</script>
+</body></html>

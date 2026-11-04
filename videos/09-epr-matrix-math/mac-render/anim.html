@@ -1,0 +1,323 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The EPR paradox as a quantum computation · animation v0.1</title>
+<style>
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;max-width:1000px;margin:30px auto;padding:0 20px;color:#222}
+h1{margin:0}.sub{color:#777;margin:4px 0 18px}
+#box{background:#000;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px #0003}
+canvas{display:block;width:100%;aspect-ratio:16/9}
+#bar{display:flex;align-items:center;gap:12px;margin-top:10px}
+#play{width:84px;font-size:15px;padding:6px 0;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+#scrub{flex:1}
+#time{font:14px ui-monospace,Menlo,monospace;color:#555;width:120px;text-align:right}
+#cap{min-height:3.2em;margin:12px 0;font-size:19px;color:#333;font-style:italic}
+#chap button{font-size:13px;margin:0 6px 6px 0;padding:3px 9px;border:1px solid #ccc;border-radius:12px;background:#f7f7f7;cursor:pointer}
+#chap button.on{background:#ffe9a8;border-color:#d9b24a}
+.note{color:#666;font-size:14px;border-top:1px solid #eee;margin-top:22px;padding-top:10px}
+label{font-size:14px;color:#555}
+</style></head><body>
+<h1>The EPR paradox as a quantum computation</h1>
+<div class="sub">Animation v0.1, for your screenplay. Space = play/pause · ← → = 2 s back/forward · drag the scrubber. Every frame is drawn live. The timing is a guess (about 2.5 words a second); the final render stretches each line to fit your recorded voice.</div>
+<div id="box"><canvas id="c" width="1920" height="1080"></canvas></div>
+<div id="bar"><button id="play">▶ Play</button><input id="scrub" type="range" min="0" max="100" step="0.02" value="0"><span id="time">0.0</span></div>
+<div id="cap"></div>
+<div id="chap"></div>
+<label><input type="checkbox" id="capon"> subtitles inside the box</label>
+<div class="note" id="note"></div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// optional on-screen extras. Set any to false to drop it.
+const MIRROR=false;       // the small "real experiment" panel (off: Greg, Oct-29: less noise, just the diagram and the math)
+const NOTE_BELL=true;     // end card: "(the written-down-answers limit is a Bell inequality; real experiments side with the qubits)"
+// ---------- the math (every number on screen is computed here) ----------
+// two qubits: Alice (the first bit) and Bob (the second). States 00, 01, 10, 11. Row vectors: new = v·M (as in the series)
+const NQ=2, R2=Math.SQRT1_2;
+const zeros=n=>[...Array(n)].map(()=>Array(n).fill(0)), eye=n=>zeros(n).map((r,i)=>r.map((_,j)=>i==j?1:0));
+const mmul=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,x,k)=>s+x*B[k][j],0)));
+const tr=A=>A[0].map((_,j)=>A.map(r=>r[j]));
+const vm=(v,A)=>A[0].map((_,j)=>v.reduce((s,x,k)=>s+x*A[k][j],0));
+const kron=(A,B)=>{const n=A.length,m=B.length,K=zeros(n*m);for(let a=0;a<n;a++)for(let b=0;b<n;b++)for(let c=0;c<m;c++)for(let d=0;d<m;d++)K[a*m+c][b*m+d]=A[a][b]*B[c][d];return K};
+const norm=v=>Math.sqrt(v.reduce((s,x)=>s+x*x,0));
+const HM=[[R2,R2],[R2,-R2]], CNM=[[1,0,0,0],[0,1,0,0],[0,0,0,1],[0,0,1,0]], I2=eye(2);
+// the buttons: turn the qubit by an angle (like a polarizer at that angle). R(θ) on (0, 1); as a row-vector matrix, use Rᵀ
+const BUT=[0,22.5,45], BNAME=['top','middle','bottom'];
+const RT=d=>{const t=d*Math.PI/180,c=Math.cos(t),s=Math.sin(t);return[[c,-s],[s,c]]};
+const TIE1=tr(kron(HM,I2)), TIE2=tr(CNM);                     // the two "tie them together" gates
+const turn=(a,b)=>tr(kron(RT(BUT[a]),RT(BUT[b])));            // Alice presses a, Bob presses b
+const V0=[1,0,0,0], V1=vm(V0,TIE1), V2=vm(V1,TIE2);           // 00 → (00+10)/√2 → (00+11)/√2
+const press=(a,b)=>vm(V2,turn(a,b));
+const psame=v=>v[0]*v[0]+v[3]*v[3], pdiff=v=>v[1]*v[1]+v[2]*v[2], pA1=v=>v[2]*v[2]+v[3]*v[3], pB1=v=>v[1]*v[1]+v[3]*v[3];
+const SAME=BUT.map((_,a)=>BUT.map((_,b)=>psame(press(a,b))));
+// written-down answers: whenever top ≠ bottom, the middle differs from one of them, so P(top≠bottom) ≤ P(top≠middle) + P(middle≠bottom)
+const D01=1-SAME[0][1], D12=1-SAME[1][2], D02=1-SAME[0][2], BOUND=D01+D12;
+// check that argument by brute force over every possible cheat sheet (top, middle, bottom answers, the same on both sides)
+const SHEETS=[...Array(8).keys()].map(k=>[(k>>2)&1,(k>>1)&1,k&1]);
+const sheetOK=SHEETS.every(([t,m,b])=>(t!=b?1:0)<=(t!=m?1:0)+(m!=b?1:0));
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+// DRAFT lines for Greg (draft 4: only the link between the setup and the matrix math, Falk-style); rewrite freely
+const SCRIPT=[
+['famous bit of quantum',"The EPR paradox is a famous bit of quantum weirdness that really happens. In this video, I just want to show how that real setup turns into matrix math.",1.0],
+['one for alice',"We have two qubits, one for Alice and one for Bob, both starting at 0. In the math, that's a vector of 4 numbers, with a 1 at 00.",1.0],
+['tie them together',"Then two gates tie them together. The first one makes Alice's qubit 50/50 between 0 and 1.",0.8],
+['right below it',"Each gate is a 4 by 4 matrix, and we multiply in a handy layout: the matrix goes above, and the result goes right below it.",2.2],
+['copies alice',"The second gate copies Alice's qubit onto Bob's: it flips Bob's qubit whenever Alice's is a 1. Now the vector is half 00 and half 11.",2.0],
+['far apart',"Then Alice and Bob carry their qubits far apart.",0.8],
+['turn their qubit',"Each of them has three buttons, which turn their qubit by some angle, like a polarizer, and then they look. That's one more matrix, which depends on the buttons they pressed.",2.2],
+['squared and added',"And in the result, the chance that they see the same thing is right here: the 00 and 11 numbers, squared and added up.",2.4],
+['same button',"If they press the same button, that's 100%.",2.8],
+['neighboring buttons',"Neighboring buttons give about 85%.",2.6],
+['top and bottom buttons',"And the top and bottom buttons give 50%, just like in the real experiment.",2.2],
+['there you have it',"And there you have it: the EPR paradox situation, turned into easy math.",1.2]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);                 // event f seconds after line i ends
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',a:'#4da3ff',b:'#ff9f43',ok:'#3ecf6e',ink:'#08121c'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const tw=(s,sz,wt='')=>{g.save();g.font=`${wt} ${sz}px ${FONT}`;const w=g.measureText(s).width;g.restore();return w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+// rich text: segs = [[text, color, weight]]; returns the x where each segment starts
+function rich(segs,x,y,sz,al='center',a=1){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;const xs=[];segs.forEach((s,i)=>{xs.push(X);txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]});return xs.map((v,i)=>v+ws[i]/2)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function dot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.5;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// a matrix cell: lit = 0..1 tint toward col; ring = 0..1 glowing outline
+function cell(x,y,s,col,{a=1,lit=0,ring=0,dash=0,v=null,va=1,vcol=C.txt,vs=1,only=false}={}){if(a<=0)return;const p=Math.max(3,s*0.05);
+ g.save();g.globalAlpha*=a;const ga=g.globalAlpha;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);
+ if(only){}else if(dash){g.setLineDash([s*0.09,s*0.07]);g.strokeStyle=col;g.globalAlpha=ga*dash;g.lineWidth=Math.max(1.5,s*0.025);g.stroke();g.globalAlpha=ga;g.setLineDash([])}
+ else{g.fillStyle=lit>0?mix(C.panel,col.length==7?col:C.gold,0.5*lit):C.panel;g.fill();g.strokeStyle=mix('#2a3a4a',col,0.35+0.65*lit);g.lineWidth=Math.max(1.5,s*0.02);g.stroke()}
+ if(ring>0){g.globalAlpha=ga*ring;g.shadowColor=col;g.shadowBlur=s*0.25;g.strokeStyle=col;g.lineWidth=s*0.045;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);g.stroke()}
+ g.restore();
+ if(v!=null&&va>0){g.save();g.translate(x+s/2,y+s/2);const k=vs;g.scale(k,k);txt(''+v,0,s*0.03,s*0.44,lit>0.5&&vcol==C.txt?'#fff':vcol,'center','bold',a*va);g.restore()}}
+// square brackets around a matrix
+function brackets(x,y,w,h,col,a=1){if(a<=0)return;const d=Math.min(22,w*0.08);g.save();g.globalAlpha*=a;g.strokeStyle=col;g.lineWidth=4;g.lineCap='round';g.lineJoin='round';
+ g.beginPath();g.moveTo(x+d-4,y-6);g.lineTo(x-4,y-6);g.lineTo(x-4,y+h+6);g.lineTo(x+d-4,y+h+6);g.moveTo(x+w-d+4,y-6);g.lineTo(x+w+4,y-6);g.lineTo(x+w+4,y+h+6);g.lineTo(x+w-d+4,y+h+6);g.stroke();g.restore()}
+// the "finger": an abstract glowing arrowhead, tip at (x,y), pointing along angle ang (a soft halo + a bright chevron)
+function finger(x,y,ang,a=1,sc=0.8,col='#fff'){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.rotate(ang);g.scale(sc,sc);
+ const h=g.createRadialGradient(-14,0,0,-14,0,46);h.addColorStop(0,col+'55');h.addColorStop(1,col+'00');g.fillStyle=h;g.beginPath();g.arc(-14,0,46,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=22;g.fillStyle=mix(col,'#ffffff',0.55);
+ g.beginPath();g.moveTo(0,0);g.lineTo(-40,-24);g.lineTo(-30,0);g.lineTo(-40,24);g.closePath();g.fill();
+ g.restore()}
+// ---------- small helpers ----------
+function rngS(seed){let s=seed%2147483647||1;return()=>(s=(s*16807)%2147483647)/2147483647}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+C.q='#ff6b9a'; C.bad='#ff5d5d';
+const WC=['#6fd0ff','#ffb36b','#a6ee7c'];                            // one color per wire (and per bit in the state names)
+const close=(a,b,e=1e-9)=>Math.abs(a-b)<e;
+// the numbers we write: 0, ±1, ±1/√2, ±½
+function fmt(x){if(close(x,0))return'0';const s=x<0?'−':'',a=Math.abs(x);return s+(close(a,1)?'1':close(a,R2)?'1/√2':close(a,0.5)?'½':a.toFixed(2))}
+// a state name, each bit in its wire's color
+function sname(k,x,y,sz,a=1,al='center',wt='',nb=NQ){if(a<=0)return;rich(k.toString(2).padStart(nb,'0').split('').map((b,w)=>[b,WC[w],wt]),x,y,sz,al,a)}
+function glowLine(pts,u,col,a=1,w=6){if(a<=0||u<=0)return;let L=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d}
+ let left=L*cl(u),X=pts[0][0],Y=pts[0][1];g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=18;g.strokeStyle=col;g.lineWidth=w;g.lineCap='round';g.lineJoin='round';g.beginPath();g.moveTo(X,Y);
+ for(let i=1;i<pts.length&&left>0;i++){const k=Math.min(1,left/seg[i-1]);X=lerp(pts[i-1][0],pts[i][0],k);Y=lerp(pts[i-1][1],pts[i][1],k);g.lineTo(X,Y);left-=seg[i-1]}
+ g.stroke();g.restore();glowDot(X,Y,w*1.4,'#fff',a)}
+// a number in a matrix/vector cell
+function num(x,y,s,v,col,a=1){if(a<=0)return;const z=close(v,0),f=fmt(v);txt(f,x+s/2,y+s/2+s*0.02,z?s*0.3:f.length>2?s*0.27:s*0.42,z?C.dim:col,'center',z?'':'bold',a*(z?0.45:1))}
+// ---------- the swarm: little circuits, each with its own matrix next to it (computed with the same expand rule) ----------
+const swCache={};
+function miniCircuit(r,d){const cols=3+Math.floor(r()*3),gs=[];
+ for(let c=0;c<cols;c++){if(d>1&&r()<0.45){const a=Math.floor(r()*d);let b=Math.floor(r()*(d-1));if(b>=a)b++;gs.push({name:'CNOT',wires:[a,b]})}else gs.push({name:['H','X','Z'][Math.floor(r()*3)],wires:[Math.floor(r()*d)]})}
+ const n=1<<d, b=(i,w)=>(i>>(d-1-w))&1, little={H:HM,X:[[0,1],[1,0]],Z:[[1,0],[0,-1]],CNOT:CNM};
+ let M=null;for(const G of gs){const E=zeros(n),ws=G.wires;for(let i=0;i<n;i++)for(let j=0;j<n;j++){if([...Array(d).keys()].every(w=>ws.includes(w)||b(i,w)==b(j,w)))E[i][j]=little[G.name][ws.reduce((s,w)=>s*2+b(i,w),0)][ws.reduce((s,w)=>s*2+b(j,w),0)]}
+  M=M?mmul(M,tr(E)):tr(E)}
+ return{gs,M,n}}
+function swarm(key,seed,keep,dt0,dec,s0){if(swCache[key])return swCache[key];const r=rngS(seed);
+ const out=[],boxes=keep.map(b=>b.slice());let t=0,s=s0;
+ for(let k=0;k<500&&s>=6;k++,s*=0.982){const d=s>=14?2+Math.floor(r()*3):2+Math.floor(r()*2),mc=miniCircuit(r,d);
+  const cw=(mc.gs.length+1)*s*1.3, h=(d-1)*s+s*1.2, ms=h/mc.n, w=cw+s*0.8+h, pad=Math.max(7,s*0.4);let ok=null;
+  for(let tr2=0;tr2<300&&!ok;tr2++){const x=20+r()*(W-40-w),y=20+r()*(H-40-h);if(boxes.every(([x1,y1,x2,y2])=>x+w+pad<x1||x>x2+pad||y+h+pad<y1||y>y2+pad))ok=[x,y]}
+  if(!ok)continue;
+  out.push({t,x:ok[0],y:ok[1],w,h,s,d,cw,ms,...mc,per:2+r()*1.5,ph:r()});boxes.push([ok[0],ok[1],ok[0]+w,ok[1]+h]);t+=Math.max(0.06,dt0*Math.pow(dec,out.length))}
+ return swCache[key]=out}
+function mini(e,q,a){if(a<=0||q<0)return;const{x,y,s,d,gs,M,n,cw,ms}=e,aIn=eo(q/0.4),y0=y+s*0.6,gx=c=>x+(c+0.9)*s*1.3;
+ const cyc=((q+e.ph*e.per)%e.per)/e.per, cur=x+cyc*cw;
+ g.save();g.globalAlpha*=a*aIn;
+ for(let w=0;w<d;w++){g.strokeStyle=WC[w%3];g.globalAlpha=a*aIn*0.7;g.lineWidth=Math.max(1,s*0.07);g.beginPath();g.moveTo(x,y0+w*s);g.lineTo(x+cw,y0+w*s);g.stroke()}
+ g.globalAlpha=a*aIn;
+ gs.forEach((G,c)=>{const X=gx(c),near=Math.max(0,1-Math.abs(cur-X)/(s*0.8));g.strokeStyle=mix('#7d8b99','#ffffff',near);g.fillStyle=mix(C.panel,'#3a4a5a',near);g.lineWidth=Math.max(1,s*0.06);
+  if(G.name=='CNOT'){const yc=y0+G.wires[0]*s,yt=y0+G.wires[1]*s,r=s*0.24;g.beginPath();g.moveTo(X,yc);g.lineTo(X,yt);g.stroke();g.beginPath();g.arc(X,yc,s*0.1,0,7);g.fillStyle=g.strokeStyle;g.fill();g.beginPath();g.arc(X,yt,r,0,7);g.stroke()}
+  else{const yy=y0+G.wires[0]*s,b=s*0.62;rr(X-b/2,yy-b/2,b,b,b*0.18);g.fill();g.stroke();if(s>=16)txt(G.name,X,yy+1,s*0.4,'#e8eef4','center','bold')}});
+ // the matrix: bright = big entry; gold = positive, pink = negative. It glows as the cursor finishes the diagram
+ const mx=x+cw+s*0.8, my=y, gl=0.55+0.45*Math.max(0,1-Math.abs(cyc-0.97)*6);
+ for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=M[i][j];if(Math.abs(v)<1e-9){if(ms>=6){g.fillStyle='#ffffff10';g.fillRect(mx+j*ms+0.5,my+i*ms+0.5,ms-1,ms-1)}continue}
+  g.globalAlpha=a*aIn*Math.abs(v)*gl;g.fillStyle=v>0?C.gold:C.q;g.fillRect(mx+j*ms+0.5,my+i*ms+0.5,ms-1,ms-1)}
+ g.restore()}
+const hits=(e,[x1,y1,x2,y2])=>!(e.x+e.w<x1||e.x>x2||e.y+e.h<y1||e.y>y2);
+function swarmDraw(list,t0,a,dimBox,dimK){if(a<=0)return;for(const e of list){const q=tt-t0-e.t;if(q<0)break;mini(e,q,a*(dimK>0&&hits(e,dimBox)?1-0.88*dimK:1))}}
+// ---------- the stage: the circuit on top; each gate's 4×4 directly under it; each result directly under its matrix (Falk's scheme) ----------
+const CS2=64, X_V0=360, LP=X_V0-150, GAPX=46, XMk=k=>X_V0+4*CS2+GAPX+k*(4*CS2+GAPX), MYB=420, VYB=MYB+4*CS2+24;
+const XVk=k=>k==0?X_V0:XMk(k-1);                              // where vector k sits (k = 0 start, 1 after H, 2 after copy, 3 after the turns)
+const GXk=k=>XMk(k)+2*CS2;                                     // the gate above matrix k
+const WYA=170, WYB=290, WYA2=135, WYB2=325, XSPL0=GXk(1)+70, XSPL1=GXk(2)-70, XW0=X_V0+30, XW1=GXk(2)+100;
+const SW1=swarm('in',20261028,[FACE,[W/2-760,30,W/2+760,215]],0.7,0.93,30);
+const ENDBOX=[W/2-760,240,W/2+600,760];
+const SW2=swarm('out',6161,[FACE,ENDBOX],0.2,0.93,24);
+const wy=(w,x)=>{const u=ease((x-XSPL0)/(XSPL1-XSPL0));return w==0?lerp(WYA,WYA2,u):lerp(WYB,WYB2,u)};
+// the steps: k = which gate; each computes vector k from vector k-1 (for the turns: one step per pair of buttons pressed)
+const STEPS=(()=>{const L=k=>LK(k),l4=L('right below it'),l5=L('copies alice'),l7=L('turn their qubit'),l9=L('same button'),l10=L('neighboring buttons'),l11=L('top and bottom buttons');
+ const R=[{k:1,t0:at(l4,0.45),dt:0.5,M:TIE1,vin:V0,vout:V1},{k:2,t0:at(l5,0.55),dt:0.4,M:TIE2,vin:V1,vout:V2}];
+ const P=(a,b,t,dt=0.18)=>R.push({k:3,t0:t,dt,a,b,M:turn(a,b),vin:V2,vout:press(a,b)});
+ P(1,1,at(l7,0.7),0.35);P(0,0,E[l9]+0.3);P(2,2,E[l9]+1.6);P(0,1,at(l10,0.2));P(1,2,E[l10]+0.4);P(0,2,at(l11,0.2));
+ return R})();
+const stepDur=s=>4*s.dt+0.5;
+// what's showing now: the last step per k, how far it got, and the current pair of buttons
+function nowState(t){const last={};for(const s of STEPS)if(t>=s.t0-0.45)last[s.k]=s;const p=last[3]||null;return{last,pair:p?[p.a,p.b]:[1,1]}}
+function cellDone(s,j,t){return s?ease((t-s.t0-j*s.dt-0.4)/0.15):0}
+// drawing
+function wires(a){const names=['Alice','Bob'];for(let w=0;w<2;w++){g.save();g.globalAlpha*=a*0.85;g.strokeStyle=WC[w];g.lineWidth=3;g.lineCap='round';g.beginPath();
+  for(let x=XW0;x<=XW1;x+=6){const y=wy(w,x);x==XW0?g.moveTo(x,y):g.lineTo(x,y)}g.stroke();g.restore();
+  txt(names[w],LP,wy(w,XW0),28,WC[w],'left','bold',a);txt('|0⟩',XW0-12,wy(w,XW0),28,WC[w],'right','',a)}}
+function hGate(x,a,lit){if(a<=0)return;const y=WYA,s=50;g.save();g.globalAlpha*=a;if(lit>0){g.shadowColor='#fff';g.shadowBlur=30*lit}rr(x-s/2,y-s/2,s,s,9);g.fillStyle=C.panel;g.fill();g.strokeStyle='#e8eef4';g.lineWidth=2.5;g.stroke();g.restore();txt('H',x,y+1,28,'#fff','center','bold',a)}
+function copyG(x,a,lit){if(a<=0)return;const r=17;g.save();g.globalAlpha*=a;if(lit>0){g.shadowColor='#fff';g.shadowBlur=30*lit}g.strokeStyle='#e8eef4';g.lineWidth=2.5;g.beginPath();g.moveTo(x,WYA);g.lineTo(x,WYB+r);g.stroke();
+ g.fillStyle='#e8eef4';g.beginPath();g.arc(x,WYA,7,0,7);g.fill();g.beginPath();g.arc(x,WYB,r,0,7);g.fillStyle=C.panel;g.fill();g.stroke();g.beginPath();g.moveTo(x-r,WYB);g.lineTo(x+r,WYB);g.moveTo(x,WYB-r);g.lineTo(x,WYB+r);g.stroke();g.restore()}
+function dial(x,y,ang,a,col,r=22){if(a<=0)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.lineWidth=2;g.beginPath();g.arc(x,y,r,0,7);g.stroke();const t=-ang*Math.PI/180;
+ g.lineWidth=4;g.lineCap='round';g.beginPath();g.moveTo(x-Math.cos(t)*r*0.8,y-Math.sin(t)*r*0.8);g.lineTo(x+Math.cos(t)*r*0.8,y+Math.sin(t)*r*0.8);g.stroke();g.restore()}
+function turnGate(w,x,ang,a,lit){if(a<=0)return;const y=wy(w,x),s=64;g.save();g.globalAlpha*=a;if(lit>0){g.shadowColor=WC[w];g.shadowBlur=34*lit}rr(x-s/2,y-s/2,s,s,12);g.fillStyle=C.panel;g.fill();g.strokeStyle=WC[w];g.lineWidth=3;g.stroke();g.restore();
+ dial(x,y-8,ang,a,'#e8eef4',17);txt(`${ang}°`,x,y+19,13,C.dim,'center','',a)}
+function phone(x,y,pressed,a,col){if(a<=0)return;g.save();g.globalAlpha*=a;rr(x-22,y-40,44,80,9);g.fillStyle='#0d1620';g.fill();g.strokeStyle=col;g.lineWidth=2;g.stroke();
+ for(let k=0;k<3;k++){const by=y-22+k*22,on=k===pressed;g.beginPath();g.arc(x,by,8,0,7);g.fillStyle=on?col:'#2a3a4a';if(on){g.shadowColor=col;g.shadowBlur=16}g.fill();g.shadowBlur=0}g.restore()}
+// a row vector in the bottom band
+function vrow(v,k,a,lab,doneF,hl,colF){if(a<=0)return;const x0=XVk(k);txt(lab,x0+2*CS2,VYB+CS2+44,20,C.dim,'center','',a);
+ for(let j=0;j<4;j++){const d=doneF?doneF(j):1,h=hl?hl(j):0;cell(x0+j*CS2,VYB,CS2,colF?colF(j):C.gold,{a,lit:h*0.5,ring:h});if(d>0)num(x0+j*CS2,VYB,CS2,v[j],C.gold,a*d);
+  sname(j,x0+j*CS2+CS2/2,VYB+CS2+18,18,a,'center','',2)}}
+function scMain(){
+ const L=k=>LK(k),l2=L('one for alice'),l3=L('tie them together'),l4=L('right below it'),l5=L('copies alice'),l6=L('far apart'),l7=L('turn their qubit'),l8=L('squared and added'),l12=L('there you have it');
+ const out=1;g.save();
+ const st=nowState(tt),[pa,pb]=st.pair;
+ const lit=k=>{const s=st.last[k];if(!s)return 0;const q=tt-s.t0;return Math.max(0,Math.min(1,(q+0.45)/0.3))*(1-ease((q-stepDur(s))/0.4))};
+ // the circuit
+ wires(ev(l2,0,0.6));
+ const aH=ev(l3,0.1,0.5),aC=ev(l5,0.05,0.5),aT=ev(l7,0.2,0.5);
+ hGate(GXk(0),aH,lit(1));copyG(GXk(1),aC,lit(2));
+ txt('50/50',GXk(0),WYA+44,18,C.dim,'center','',ev(l3,0.4,0.5));txt('copy',GXk(1)+30,WYB+40,18,C.dim,'center','',ev(l5,0.3,0.5));
+ txt('far apart',(XSPL0+XSPL1)/2,(WYA2+WYB2)/2,22,C.dim,'center','',ev(l6,0.2,0.5)*(1-ev(l7,0,0.5)*0.7));
+ turnGate(0,GXk(2),BUT[pa],aT,lit(3));turnGate(1,GXk(2),BUT[pb],aT,lit(3));
+ phone(GXk(2)+80,wy(0,GXk(2)),pa,aT,WC[0]);phone(GXk(2)+80,wy(1,GXk(2)),pb,aT,WC[1]);
+ // gate → matrix: a faint guide always; bright while that step runs
+ const gateY=[WYA+28,WYB+20,wy(1,GXk(2))+34], ma=[aH*ev(l3,0.5,0.5),aC*ev(l5,0.35,0.5),aT*ev(l7,0.45,0.5)];
+ for(let k=0;k<3;k++){if(ma[k]<=0)continue;const x=GXk(k),l=lit(k+1);g.save();g.globalAlpha*=ma[k]*(0.18+0.6*l);g.setLineDash([6,7]);g.strokeStyle=C.a;g.lineWidth=2.5;g.beginPath();g.moveTo(x,gateY[k]);g.lineTo(x,MYB-34);g.stroke();g.restore()}
+ // the matrices (row-vector form): H, copy, turns(a, b)
+ const Ms=[TIE1,TIE2,turn(pa,pb)], labs=['H on Alice','copy',`turns: ${BNAME[pa]}, ${BNAME[pb]}`];
+ for(let k=0;k<3;k++){const a=ma[k];if(a<=0)continue;const x=XMk(k),s=st.last[k+1],l=lit(k+1);txt(labs[k],x+2*CS2,MYB-20,20,C.a,'center','bold',a);
+  for(let r=0;r<4;r++)for(let q=0;q<4;q++){const tr_=traceLit(s,r,q);cell(x+q*CS2,MYB+r*CS2,CS2,C.a,{a,lit:tr_*0.7});num(x+q*CS2,MYB+r*CS2,CS2,Ms[k][r][q],'#fff',a)}
+  brackets(x,MYB,4*CS2,4*CS2,C.a,a*0.9)}
+ // the vectors along the bottom: start, then each result right below its matrix
+ vrow(V0,0,ev(l2,0.5,0.5),'start',null,j=>rowLit(st.last[1]));
+ const vlab=['after H','after copy','after the turns'];
+ for(let k=1;k<=3;k++){const s=st.last[k];if(!s)continue;const a=ease((tt-s.t0+0.45)/0.4);
+  const nz=j=>Math.abs(s.vout[j])>1e-9?1:0;
+  const hl=k==3?j=>(j==0||j==3)*nz(j)*ev(l8,0.3,0.5):k==2?j=>nz(j)*ev(l5,0.85,0.4)*(1-ev(l6,0.3,0.5)):null;
+  const colF=k==3&&ev(l8,0.3,0.01)>0?j=>(j==0||j==3)?C.ok:C.gold:null;
+  vrow(s.vout,k,a,vlab[k-1],j=>cellDone(s,j,tt),j=>Math.max(hl?hl(j):0,k<3?rowLit(st.last[k+1]):0),colF)}
+ // the traces: for each result cell, left along the previous vector, up the matrix's column (as in the matrix video)
+ for(let k=1;k<=3;k++){const s=st.last[k];if(!s)continue;for(let j=0;j<4;j++){const u=tt-s.t0-j*s.dt;if(u<0||u>0.6)continue;const f=1-cl((u-0.4)/0.2),pr=eo(u/0.35);
+   const cx=XMk(k-1)+j*CS2+CS2/2,cy=VYB+CS2/2,lx=lerp(cx,XVk(k-1)+CS2*0.3,pr),ly=lerp(cy,MYB+CS2*0.3,pr);
+   g.save();g.globalAlpha*=f;g.shadowColor='#fff';g.shadowBlur=14;g.strokeStyle='#ffffffd0';g.lineWidth=4;g.lineCap='round';g.beginPath();g.moveTo(cx,cy);g.lineTo(lx,cy);g.moveTo(cx,cy);g.lineTo(cx,ly);g.stroke();g.restore();
+   glowDot(lx,cy,7,'#fff',f);glowDot(cx,ly,7,'#fff',f)}}
+ // "matrix above, result right below it"
+ const fk=ev(l4,0.25,0.5)*(1-ev(l5,0,0.5));
+ if(fk>0){const x=XMk(0)+4*CS2+8;txt('matrix above,',x+6,MYB+3.2*CS2,20,C.dim,'left','',fk);txt('result right below',x+6,MYB+3.2*CS2+26,20,C.dim,'left','',fk)}
+ // where the correlation is (option CD, Greg's pick): the 00 and 11 squares, joined by an arc that pours into a 100% track
+ const s3=st.last[3],f8=ev(l8,0.3,0.5);
+ if(s3&&f8>0){const v=s3.vout,x0=XVk(3),cx=x0+2*CS2,d=Math.min(...[0,1,2,3].map(j=>cellDone(s3,j,tt))),a=f8*d,cj=j=>x0+j*CS2+CS2/2;
+  const pc=p=>`${(p*100).toFixed(close(p*100,Math.round(p*100),1e-6)?0:1)}%`;
+  const yS=VYB+CS2+66, yA=yS+16, dep=64, arcU=ev(l8,0.42,0.6)*d, dropU=ev(l8,0.55,0.35)*d, fillU=ev(l8,0.62,0.7)*d;
+  for(const j of[0,3])txt(pc(v[j]*v[j]),cj(j),yS,19,C.ok,'center','bold',a);
+  if(arcU>0){g.save();g.globalAlpha*=a;g.strokeStyle=C.ok;g.lineWidth=3;g.lineCap='round';
+   // draw the arc from both ends toward the middle, then the drop
+   const P=(u)=>{const x1=cj(0),x2=cj(3),q=1-u;return[q*q*q*x1+3*q*q*u*x1+3*q*u*u*x2+u*u*u*x2,q*q*q*yA+3*q*q*u*(yA+dep)+3*q*u*u*(yA+dep)+u*u*u*yA]};
+   g.beginPath();for(let k=0;k<=40;k++){const u=k/40*0.5*arcU,[x,y]=P(u);k?g.lineTo(x,y):g.moveTo(x,y)}g.stroke();
+   g.beginPath();for(let k=0;k<=40;k++){const u=1-k/40*0.5*arcU,[x,y]=P(u);k?g.lineTo(x,y):g.moveTo(x,y)}g.stroke();
+   const ym=P(0.5)[1];if(dropU>0){g.beginPath();g.moveTo(cx,ym);g.lineTo(cx,lerp(ym,ym+36,dropU));g.stroke()}g.restore()}
+  const bw=440,bx=cx-bw/2,by=P0Y(yA,dep)+40,bh=38;
+  if(dropU>0){g.save();g.globalAlpha*=a;rr(bx,by,bw,bh,9);g.fillStyle='#ffffff0d';g.fill();g.strokeStyle='#ffffff26';g.lineWidth=1.5;g.stroke();
+   if(fillU>0){rr(bx+1,by+1,Math.max(2,(bw-2)*psame(v)*fillU),bh-2,8);g.fillStyle=mix(C.panel,C.ok,0.6);g.fill()}g.restore();
+   txt('0%',bx,by+bh+16,14,C.dim,'center','',a);txt('100%',bx+bw,by+bh+16,14,C.dim,'center','',a);
+   txt(`same: ${pc(psame(v)*Math.min(1,fillU*1.0001))}`,bx+Math.max(80,bw*psame(v)*fillU/2),by+bh/2,20,'#fff','center','bold',a*ease(fillU*2))}}
+ if(MIRROR)mirror(st,pa,pb);
+ g.restore()}
+// trace highlights: matrix column j of step s lights while cell j is traced; the previous vector row lights too
+function traceLit(s,r,q){if(!s)return 0;const u=tt-s.t0-q*s.dt;return u>=0&&u<0.6?cl(u/0.1)*(1-cl((u-0.4)/0.2)):0}
+function P0Y(yA,dep){return yA+dep*0.75}   // the arc's lowest point (a cubic with both handles at depth dep)
+function rowLit(s){if(!s)return 0;let m=0;for(let j=0;j<4;j++)m=Math.max(m,traceLit(s,0,j));return m*0.8}
+// the real experiment, on the right: an entangled-photon source, two polarizers at the pressed angles, and what they see
+function mirror(st,pa,pb){const l2=LK('one for alice'),l7=LK('turn their qubit'),l12=LK('there you have it'),a=ev(l2,0.5,0.6)*(1-ev(l12,0.85,0.6));if(a<=0)return;
+ const sx=1475,y=200,lx=1350,rx=1600,s3=st.last[3],aT=ev(l7,0.3,0.5);
+ txt('the real experiment:',1330,120,20,C.dim,'left','',a);glowDot(sx,y,10,C.gold,a);txt('source',sx,y+30,16,C.dim,'center','',a);
+ if(s3){const u=cl((tt-s3.t0+0.45)/0.6);if(u<1){glowDot(lerp(sx,lx,u),y,6,'#fff',a);glowDot(lerp(sx,rx,u),y,6,'#fff',a)}}
+ dial(lx,y,BUT[pa],a*Math.max(0.35,aT),WC[0],24);dial(rx,y,BUT[pb],a*Math.max(0.35,aT),WC[1],24);
+ txt('Alice',lx,y+44,18,WC[0],'center','',a);txt('Bob',rx,y+44,18,WC[1],'center','',a);
+ if(s3){const d=ease((tt-s3.t0-4*s3.dt-0.3)/0.3);rich([['they see the same: ',C.dim,''],[`${(psame(s3.vout)*100).toFixed(close(psame(s3.vout),Math.round(psame(s3.vout)*2)/2,1e-6)?0:1)}%`,C.ok,'bold']],1330,290,22,'left',a*d*aT)}
+ tableT(a*ev(LK('same button'),0.1,0.5))}
+function tableT(a){if(a<=0)return;const x0=1410,y0=400,cw=70,ch=38;txt('same, for each pair of buttons:',1330,y0-42,18,C.dim,'left','',a);
+ for(let k=0;k<3;k++){txt(['top','mid','bot'][k],x0+k*cw+cw/2,y0-12,16,WC[1],'center','bold',a);txt(['top','mid','bot'][k],x0-8,y0+k*ch+ch/2,16,WC[0],'right','bold',a)}
+ for(let i=0;i<3;i++)for(let j=0;j<3;j++){let k=0;for(const s of STEPS)if(s.k==3&&((s.a==i&&s.b==j)||(s.a==j&&s.b==i)))k=Math.max(k,ease((tt-s.t0-4*s.dt-0.3)/0.4));const p=SAME[i][j];
+  g.save();g.globalAlpha*=a;rr(x0+j*cw+3,y0+i*ch+3,cw-6,ch-6,6);g.fillStyle=k>0?mix(C.panel,p>0.99?'#3ecf6e':p>0.6?'#ffd166':'#ff5d5d',0.35*k):C.panel;g.fill();g.restore();
+  if(k>0)txt(`${(p*100).toFixed(p>0.995||close(p,0.5,1e-6)?0:1)}%`,x0+j*cw+cw/2,y0+i*ch+ch/2,16,C.txt,'center','bold',a*k)}}
+function scIntro(){const l1=LK('famous bit of quantum'),l2=LK('one for alice'),a=1-ev(l2,0,0.6);
+ txt('the EPR paradox',W/2,92,64,C.txt,'center','bold',ev(l1,0.05,0.7)*a);
+ txt('as matrix math',W/2,164,46,C.gold,'center','bold',ev(l1,0.5,0.6)*a)}
+function scEnd(){const l12=LK('there you have it'),k=ev(l12,0.9,0.7),cxm=(ENDBOX[0]+ENDBOX[2])/2;
+ txt('the setup  ↔  the math',cxm,300,46,C.txt,'center','bold',k);
+ const rows=[['two qubits','a vector of 4 numbers (00, 01, 10, 11)'],['each gate','a 4×4 matrix, right under it'],['running it, left to right','multiplying, left to right'],
+  ['the buttons','one more matrix (turn by 0°, 22.5°, 45°)'],['the chance they agree','00² + 11² in the result'],[`what the real experiment sees`,`the same: ${(SAME[0][0]*100).toFixed(0)}% / ${(SAME[0][1]*100).toFixed(0)}% / ${(SAME[0][2]*100).toFixed(0)}%`]];
+ rows.forEach(([a,b],i)=>{const kk=after(l12,0.3+i*0.3,0.6),y=370+i*52;txt(a,cxm-30,y,28,C.gold,'right','bold',kk);txt('↔',cxm,y,28,C.dim,'center','',kk);txt(b,cxm+30,y,28,C.txt,'left','',kk)})}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ const l1=LK('famous bit of quantum'),l2=LK('one for alice'),l12=LK('there you have it');
+ const dive=ev(l2,0,0.9);
+ if(dive<1){g.save();const z=1+0.35*dive;g.translate(W/2,H/2);g.scale(z,z);g.translate(-W/2,-H/2);swarmDraw(SW1,0.2,1-dive,[W/2-760,30,W/2+760,215],ev(l1,0.05,0.7));g.restore()}
+ scIntro();
+ if(t>S[l2]-1)scMain();
+ return cv}
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+// ==== ENGINE END ====
+const SCENES=[['intro',0],['two qubits',1],['H',2],['Falk layout',3],['copy',4],['far apart',5],['buttons',6],['where to look',7],['same button',8],['neighbors',9],['top & bottom',10],['there you have it',11]];
+const CAP=SCRIPT.map(([k,s],i)=>[S[i]-0.2,E[i]+0.2,s]);
+const meq=(A,B)=>A.every((r,i)=>r.every((x,j)=>close(x,B[i][j])));
+const CHK={
+ unitary:[TIE1,TIE2,...[0,1,2].flatMap(a=>[0,1,2].map(b=>turn(a,b)))].every(M=>meq(mmul(M,tr(M)),eye(4))),
+ tied:close(V2[0],R2)&&close(V2[3],R2)&&close(V2[1],0)&&close(V2[2],0),
+ cos2:[0,1,2].every(a=>[0,1,2].every(b=>close(SAME[a][b],Math.cos((BUT[a]-BUT[b])*Math.PI/180)**2))),
+ table:close(SAME[0][0],1)&&close(SAME[0][1],0.8535533905932737)&&close(SAME[0][2],0.5),
+ sheets:sheetOK,
+ violates:D02>BOUND+0.2,
+ noSignal:[0,1,2].every(a=>[0,1,2].every(b=>close(pA1(press(a,b)),0.5)&&close(pB1(press(a,b)),0.5))),
+ norms:[V0,V1,V2,...[0,1,2].flatMap(a=>[0,1,2].map(b=>press(a,b)))].every(v=>close(norm(v),1)),
+ swarm:[...SW1,...SW2].every(e=>meq(mmul(e.M,tr(e.M)),eye(e.n)))};
+const BAD=Object.entries(CHK).filter(([k,v])=>!v).map(([k])=>k);
+if(BAD.length)console.error('math check failed: '+BAD.join(', '));
+document.getElementById('note').innerHTML=`draft 4 (Oct-28: the setup ↔ the matrix math, Falk-style). ${SCRIPT.length} lines (DRAFT wording for Greg to rewrite), ${T.toFixed(0)} s at the guessed pace. Every number is computed in the page and re-checked: all gates unitary <b>${CHK.unitary}</b>; the tie gates give (00 + 11)/√2 <b>${CHK.tied}</b>; same = cos²(angle between) for every pair of buttons <b>${CHK.cos2}</b> (100% / ${(SAME[0][1]*100).toFixed(1)}% / 50% <b>${CHK.table}</b>); the written-down-answers rule holds for all 8 cheat sheets <b>${CHK.sheets}</b>, so different(top, bottom) ≤ ${(BOUND*100).toFixed(1)}%, but the qubits give ${(D02*100).toFixed(0)}% <b>${CHK.violates}</b>; each side alone is 50/50 for every pair (no messages) <b>${CHK.noSignal}</b>; lengths stay 1 <b>${CHK.norms}</b>; swarm circuits unitary <b>${CHK.swarm}</b>. Extras: MIRROR=${MIRROR}, NOTE_BELL=${NOTE_BELL}.`;
+let capOn=false;
+function caption(t){const c=CAP.find(c=>t>=c[0]&&t<c[1]);return c?c[2]:''}
+function render(t){drawFrame(t);const s=caption(t);
+ if(capOn&&s){ctx.save();ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000c';const w=Math.min(1800,ctx.measureText(s).width);ctx.fillRect(W/2-w/2-24,H-84,w+48,62);ctx.fillStyle='#fff';ctx.fillText(s,W/2,H-42,1800);ctx.restore()}
+ capEl.textContent=s;timeEl.textContent=t.toFixed(1)+' / '+T.toFixed(1);scrub.value=t;
+ let ci=0;SCENES.forEach((c,i)=>{if(t>=S[c[1]]-GAP)ci=i});chapBtns.forEach((b,i)=>b.classList.toggle('on',i===ci))}
+const capEl=document.getElementById('cap'),timeEl=document.getElementById('time'),scrub=document.getElementById('scrub'),playB=document.getElementById('play');
+scrub.max=T;
+const chapBtns=SCENES.map(([n,l])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{t=Math.max(0,S[l]-0.3);render(t)};document.getElementById('chap').appendChild(b);return b});
+let t=0,playing=false,last=0;
+function frame(now){if(!playing)return;t+=(now-last)/1000;last=now;if(t>=T){t=T;setPlay(false)}render(t);if(playing)requestAnimationFrame(frame)}
+function setPlay(p){playing=p;playB.textContent=p?'❚❚ Pause':'▶ Play';if(p){if(t>=T)t=0;last=performance.now();requestAnimationFrame(frame)}}
+playB.onclick=()=>setPlay(!playing);
+scrub.oninput=()=>{t=+scrub.value;render(t)};
+document.getElementById('capon').onchange=e=>{capOn=e.target.checked;render(t)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setPlay(!playing)}
+ if(e.code==='ArrowRight'){t=Math.min(T,t+2);render(t)}if(e.code==='ArrowLeft'){t=Math.max(0,t-2);render(t)}});
+const hm=location.hash.match(/t=([\d.]+)/);if(hm)t=+hm[1];
+render(t);
+</script>
+</body></html>

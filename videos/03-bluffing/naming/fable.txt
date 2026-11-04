@@ -1,0 +1,5 @@
+(Fable, Oct-22) question: is bluffing actually good, mathematically? ★ · is bluffing math or just psychology? ★ · does the math say to bluff? · should a perfect poker player bluff?
+answer: bluffing is math, not just psychology ★ · the best poker strategy bluffs · even a tiny poker game wants you to bluff · a computer plays perfect poker and bluffs anyway
+one third: bluff with the worst card exactly one third of the time · why the math says bluff one third of the time · the perfect bluff frequency (in a tiny poker game)
+tool: a four-card poker game that proves bluffing works · poker with four cards, solved: you should bluff · 256 strategies, one linear program, and a bluff · 4/36 vs 5/36: what bluffing is worth
+pick: is bluffing actually good, mathematically?

@@ -1,0 +1,11 @@
+the human voice and face you see are real, and that human came up with the idea of sharing this trick, but.. the screenplay, the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the trick: to multiply A·B by hand, write A, then write B above it and to the right, instead of next to it. the empty space under B and to the right of A is the answer. for each cell of the answer, trace left to get a row of A and up to get a column of B, multiply them pair by pair, and add.
+
+bonus: the layout checks the shapes for you. the empty corner top-left is a square only when A's width equals B's height, and the answer gets its rows from A and its columns from B. for a chain like A·B·C, write the next matrix above and to the right of A·B, and it becomes a staircase.
+
+the example: [2 1 3; 1 4 2] · [1 5; 2 1; 3 2] = [13 17; 15 13]. every number on screen is computed by the page that draws it, and checked.
+
+this layout is known as Falk's scheme (Sigurd Falk, 1951), "Falk-Schema" in German textbooks.
+
+v0.1. still an attempt, to be improved upon.

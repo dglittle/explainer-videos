@@ -1,0 +1,32 @@
+**question-style**
+- ★ is bluffing actually a good idea?, v0.1
+- should you bluff if they know your strategy?, v0.1
+- is bluffing math or psychology?, v0.1
+- can math tell you when to bluff?, v0.1
+
+**answer-style**
+- ★ even the best strategy bluffs, v0.1
+- bluffing isn't just psychology, v0.1
+- sometimes the worst card should raise, v0.1
+- a little mathematical reason to bluff, v0.1
+
+**the “one third” hook**
+- ★ why bluff one third of the time?, v0.1
+- the worst card goes all-in one third of the time, v0.1
+- in this game, bluff with a 1 one third of the time, v0.1
+
+**the experiment**
+- what happens when we let math choose the bluffs?, v0.1
+- four cards are enough to explain bluffing, v0.1
+- what does never bluffing cost you?, v0.1
+- finding the right amount of bluffing, v0.1
+
+**Single pick:** “is bluffing actually a good idea?, v0.1” — plain, curious, and puts Greg’s question first.
+
+**Traps to avoid**
+
+- Leading with “tiny poker”: makes the tool sound like the subject.
+- “Poker solved” or “proof bluffing always works”: overclaims the result.
+- Presenting one third as universal poker advice; it applies to particular decisions in this game.
+- Vague teasers like “math surprised me”: give no reason to care.
+- Packing the matrix, exact frequency, and payoff into the title: leaves little room for curiosity.

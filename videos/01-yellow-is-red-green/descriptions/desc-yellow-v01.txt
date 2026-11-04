@@ -1,0 +1,5 @@
+the human voice you hear is real, and that human had a lot of input on the screenplay, but.. the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his notes, round after round.
+
+the idea: cyan looks like blue-green, and magenta looks like red-blue, but yellow doesn't look like red-green. fade red into green evenly instead (half the red and half the green at the middle), and the middle comes out a dim olive, rgb(128, 128, 0). it's less pretty, but the fade looks smooth all the way through.
+
+v0.1. an attempt, to be improved upon.

@@ -1,0 +1,37 @@
+Continuity with the old video
+- ★ 720° on a chessboard, v0.2
+- spinor belt trick — 720° on a chessboard, v0.2
+- two turns on a rubber chessboard, v0.2
+- the rubber chessboard trick, v0.2
+
+Magic trick / challenge
+- ★ a rubber chessboard magic trick, v0.2
+- do you believe this will work?, v0.2
+- two full turns, no cheating, v0.2
+- a little magic with a rubber chessboard, v0.2
+
+Plain curious questions
+- ★ can this really end up flat?, v0.2
+- what happens if you turn it twice?, v0.2
+- seen a chessboard do this?, v0.2
+- can you untwist it by turning it again?, v0.2
+
+Math-name-forward
+- the dirac belt trick on a chessboard, v0.2
+- a rubber chessboard does the belt trick, v0.2
+- what does a 720° rotation look like?, v0.2
+
+Matching old → new pairs
+- “720° on a chessboard, v0.1” → “720° on a chessboard, v0.2”
+- “a rubber chessboard magic trick, v0.1” → “a rubber chessboard magic trick, v0.2”
+- “can this really end up flat?, v0.1” → “can this really end up flat?, v0.2”
+
+My pick: “a rubber chessboard magic trick, v0.2”. It matches the narration and Greg’s modest, personal tone.
+
+Traps
+- “impossible” or “breaks physics” over-promises; the trick’s appeal is that it really is possible.
+- “two turns and it’s flat again” gives away the payoff; a question preserves some uncertainty.
+- “spinor” and “Dirac” offer recognition for math viewers but little invitation for everyone else.
+- “chessboard” alone can suggest a chess puzzle; “rubber” or “magic trick” helps.
+- Put technical names in the description if the title stays plain; let thumbnail text complement the title.
+- Keeping the version suffix at the end puts the curiosity first.

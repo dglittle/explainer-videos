@@ -1,0 +1,7 @@
+the human voice and face you see are real, and that human came up with the idea and the three lies, but.. the physics check, the screenplay, the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the idea: people say that when Alice measures her half of an entangled pair, Bob's half "becomes" known, even light-years away, and that it wasn't known before. why couldn't it have been known all along? three increasingly true lies, told as a phone app that two people bump together: one button (easy to fake), two buttons (still easy), three buttons stacked like a traffic light (impossible to fake without a faster-than-light message).
+
+the truth, for photons: the buttons are polarizer angles 0°, 22.5° and 45°, and the chance of seeing the same number is cos² of the angle between them: 100% for the same button, 85.4% for middle vs top or bottom, 50% for top vs bottom. if the app wrote the numbers down at the bump, then whenever top and bottom differ, the middle must differ from one of them, so 50% ≤ (100% − p) + (100% − p), so p ≤ 75% (a Bell inequality). real particles get 85.4%. experiments agree with quantum mechanics (Clauser, Aspect, loophole-free tests in 2015, Nobel Prize 2022). and still no messages: each phone alone just shows random 0s and 1s.
+
+v0.1. still an attempt, to be improved upon.

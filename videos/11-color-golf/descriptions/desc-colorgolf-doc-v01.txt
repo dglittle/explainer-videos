@@ -1,0 +1,10 @@
+the human face and voice you see are real, and the idea, the lines, the joke and the direction are his: a little documentary-style moment about color golf, a game he made back in 2014. but.. the animation on the left and the editing were made by an AI (Claude), working from his description.
+
+color golf: you're shown a color, and you build it from shades of red, green and blue (7 shades each). you swing, and your ball stops as far from the hole as your color is off ("shades away"). 6 tries per color, 9 colors per game, and like golf, the lowest score wins. about 5000 people played the first version in 2014. this one is a single web page, free and open source (MIT).
+
+play it: https://dglittle.github.io/color-golf/
+the code: https://github.com/dglittle/color-golf
+
+in the video, the pink is (215, 86, 129): 5, 2 and 3 steps up the red, green and blue rows. the first swing is 1 shade away (blue is one step too high). the second is 12 away, the farthest you can be from that pink.
+
+v0.1. still an attempt, to be improved upon.

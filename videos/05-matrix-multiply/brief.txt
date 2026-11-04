@@ -1,0 +1,62 @@
+(handoff from the epr-video flight, which made Greg's last voiced video: "why is the EPR paradox weird?, v0.1", https://youtu.be/toD7BWe4QeU)
+
+Make a voiced video, v0.1, like epr-video. Read ~/airport-sessions/epr-video/README.md first. It's the newest version of the pipeline;
+../poker-video/README.md and ../spinor-v2/README.md have the history.
+
+Reuse epr-video's code (copy it, don't edit it in place):
+- anim.html: a 2-D canvas engine between ENGINE START/END, with SCRIPT = [key phrase, text, wordless hold s].
+  NOTE: the engine draws to `g`, not `ctx`: `let g=typeof ctx!=="undefined"?ctx:null;`. That lets panel() render scenes into an offscreen
+  canvas (see scMath), and it lets node eval the engine (build-booth.js, render.js and the tools all do). If you rename anything to `g`,
+  watch for locals that shadow it: that bit me 3 times.
+- build-booth.js (from studio2.orig.html) → booth.html. It has the camera checkbox and record-from-the-highlighted-line.
+  Update DIR (stage directions), the title/h1, the anim link, and EVERY 'epr1-' string to a new prefix (e.g. mm1-): the localStorage keys,
+  the IndexedDB name, the take id, and the server list filter.
+  Edit build-booth.js with small exact replacements: a sloppy splice once deleted its DEFAULT/engine template.
+- render.js: matches lines by key phrase and scales wordless holds by Greg's pace. If the take has video, it adds the webcam overlay:
+  a 220 px round face with a gold ring at (1680,845), shown only while he speaks.
+  So keep the bottom-right corner (x 1680–1900, y 845–1065) free in every scene.
+- tools/: shots.js (a frame per line → chk/), booth-shot.js, booth-cam-test.js (fake camera+mic, headless), fake-take.js,
+  splice.js (join a pickup take onto an earlier take).
+- Use this folder (~/airport-sessions/matmul-video) and a new take prefix. node_modules: symlink ../poker-video/node_modules.
+
+The math. Greg doesn't know where he found it, and it has a name: **Falk's scheme** (Sigurd Falk, 1951; "Falk-Schema" in German
+textbooks). Tell Greg, and offer it as an optional on-screen credit line. Don't put words in his mouth.
+- A (m×n) sits bottom-left. B (n×p) is drawn ABOVE AND TO THE RIGHT of A, not straight above it: B's columns line up with the result's
+  columns. The "implied space" bottom-right, under B and right of A, is C = AB (m×p).
+- C[i][j] = row i of A (trace your finger left) · column j of B (trace up): multiply pairwise and sum.
+- Free bonus: the shapes check themselves. The empty top-left square is n×n only when A's width equals B's height, and C's shape
+  (rows from A, columns from B) falls out of the layout. Chains (A·B·C) make a staircase: the next matrix goes above-right of AB.
+- Pick small integer matrices (e.g. 2×3 times 3×2, or 3×3) and have the page COMPUTE every number it shows, then check it headlessly.
+  Animate the finger tracing left and up, the pairs lighting up, the products and their sum dropping into the cell.
+- Greg wants "a cool animation of the trick" running underneath everything, including the intro disclaimer line. It's a short video
+  (~6–8 lines, ~45 s): make it beautiful rather than long.
+
+Process (lessons):
+- Write SCRIPT in Greg's words (light cleanup only). Give each line a unique key phrase that no other line's text contains.
+- Look at a frame per line AND mid-line (tools/shots.js end|mid), tile them into contact sheets, fix overlaps. Read contact sheets
+  carefully: I once blamed the wrong tile for a bug.
+- A short spoken line followed by on-screen text needs a long wordless hold (~3–4 s), or the text flashes by: the holds are scaled by
+  Greg's pace (~0.8).
+- Publish anim + booth: `node ~/kb/tools/kbt/kbt.js write docs/<shelf>/<f> --new < pub/<f>`. To update: get the version with
+  `kbt read <f> --json` → `.version[0]` (it's an array!), then `kbt write <f> --version <v>`. Then `kbt flush`, then
+  `bash ~/kb/tools/personal-reports-push.sh pub/<f>`.
+  Then STOP and give Greg the booth link. Mention the camera box, and that "Reset to the … script" clears an old saved script.
+- Takes land in ~/greg-voice/takes (<prefix>-*.webm/.json). If a take isn't there, it's still in his browser: tell him to press ⬆ Upload.
+  He may re-record everything rather than do a pickup; both work (pickup = tools/splice.js).
+- RENDER ON THE MAC, not this box: 4 GB here, and a render got OOM-killed. The kit is mac:~/airport-sessions/epr-render/
+  (run.sh = Chrome + /opt/homebrew/bin/ffmpeg + node 22 + ~/core puppeteer). Make a sibling dir (e.g. mac:~/airport-sessions/matmul-render),
+  scp anim.html, render.js, run.sh and the take there. Always `./run.sh take.webm take.json --dry` first and read the matching and the
+  camera windows. A full render is ~4 min for 3.5 min of video.
+  Then check: ffprobe the duration, volumedetect, a tiled contact sheet, and the face corner in the pauses.
+- Don't upload until Greg says so. When he says "publish":
+  - S3, with content-type video/mp4: export the AWS keys with `~/bin/sops -d --extract '["AWS_ACCESS_KEY_ID"]' ~/kb/personal/secrets/aws.yaml`
+    (and SECRET), then `aws s3api put-object --bucket bloop.monster --key <shelf>/<name>.mp4 --body <f> --content-type video/mp4 --cache-control no-cache`.
+  - YouTube on the Mac: `cd ~/pima/work/youtube-upload && ~/.nvm/versions/node/v22.13.1/bin/node upload.js --file F --title "…, v0.1" --desc "$(cat desc-….txt)" --privacy public`.
+    Run `upload.js --check` first. The token worked on Oct-24; if you get `invalid_grant`, run `node auth.js` there and Greg clicks the tab.
+    Title style: lowercase-ish, ending ", v0.1". Description style: see epr-video/desc-epr-v01.txt (who made what: his voice/face/idea,
+    the AI's screenplay/animation/code/timing; then the content; then "v0.1. still an attempt, to be improved upon.").
+  - Log the video id in your README.
+
+Greg's request, verbatim (also in greg-prompt.txt):
+
+"I don't know where I found this, not claiming I invented it, it's just an idea I want to inform more people about because of how awesome it is. (during this whole time, a cool animation of the matrix multiplication trick we're going to tell about in a moment). This is a nice way for humans to multiply matricies on paper. We have our first matrix. And then, rather than drawing our next matrix next to it, we instead draw it above. And then, this implied space is the result. and to calculate each cell, we need only trace our finger left to get the stuff we care about in the first matrix, and up to get the stuff we care about in the second matrix. And then just do the regular multiply all the elements and sum them. happy manual matrix multiplicating!" thanks!!

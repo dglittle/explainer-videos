@@ -1,0 +1,5 @@
+the human voice you hear is real, and that human wrote the screenplay, but.. the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his notes. the bending itself is the same motion as v0.1.
+
+the trick: cut a circle out of a rubber chessboard and turn it around twice, and of course it comes back the same. now leave it attached and do it again. the ring around it has to bend, but in the end it's relaxed and flat again. it never tears and never passes through itself. after one turn it's wrapped up in a ball; after two, it's free. this is the belt trick (a.k.a. Dirac's plate trick), and it's why things called spinors take 720°, not 360°, to come back to normal.
+
+v0.2 (v0.1: https://youtu.be/Xs5VtU3XFWs). still an attempt, to be improved upon.

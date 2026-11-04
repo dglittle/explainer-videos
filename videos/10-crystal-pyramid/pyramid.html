@@ -1,0 +1,173 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4 crystal balls, stacked (WebGL test 2)</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0e16;overflow:hidden}
+#wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#hud{position:fixed;left:10px;top:8px;font:14px/1.4 monospace;color:#cfe;background:#0008;padding:4px 8px;border-radius:6px;user-select:none;cursor:pointer}
+canvas{width:100vw;height:56.25vw;max-height:100vh;max-width:177.78vh}
+</style></head><body>
+<div id="hud"></div><div id="wrap"><canvas id="cv" width="1920" height="1080"></canvas></div>
+<script id="fs" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 RES;
+uniform vec3 C[4];      // ball centers (already rotated)
+uniform float RAD;      // ball radius
+uniform vec3 EYE;
+uniform mat3 CAM;
+uniform int DEPTH;      // how many balls a ray may pass through before we shade the next one cheaply
+const vec3 L = normalize(vec3(-0.5, 1.0, 0.35));   // light direction
+const float IOR = 1.5;
+const vec3 TINT = vec3(0.90, 0.95, 1.0);           // a hint of blue per pass through the crystal
+
+float hitSphere(vec3 ro, vec3 rd, vec3 c, float r, out float tFar){
+  vec3 oc = ro - c; float b = dot(oc, rd); float h = b*b - dot(oc, oc) + r*r;
+  tFar = -1.0;
+  if (h < 0.0) return -1.0;
+  h = sqrt(h); tFar = -b + h;
+  float t = -b - h;
+  return t > 1e-3 ? t : -1.0;
+}
+vec3 sky(vec3 rd){
+  float y = rd.y;
+  vec3 c = mix(vec3(0.05,0.06,0.10), vec3(0.16,0.20,0.32), smoothstep(-0.2, 0.8, y));
+  c += vec3(1.0,0.95,0.85) * pow(max(dot(rd, L), 0.0), 60.0) * 2.0;           // the lamp
+  c += vec3(0.5,0.7,1.0) * smoothstep(0.92, 1.0, dot(rd, normalize(vec3(0.8,0.3,-0.6)))) * 0.6;  // a soft window
+  return c;
+}
+// the floor: dark, faint grid, glassy shadows with a caustic spot (faked, not traced)
+vec3 floorCol(vec3 p, vec3 rd, float t){
+  vec2 g = abs(fract(p.xz * 1.0) - 0.5);
+  float line = 1.0 - smoothstep(0.0, 0.02 + t*0.002, min(g.x, g.y));
+  vec3 c = vec3(0.07,0.08,0.12) + vec3(0.10,0.14,0.22) * line;
+  float lightAmt = 1.0, caus = 0.0;
+  for (int i = 0; i < 4; i++){
+    vec3 oc = p - C[i]; float b = dot(oc, L); float d2 = dot(oc, oc) - b*b;
+    if (b < 0.0){
+      float q = d2 / (RAD*RAD);
+      lightAmt *= mix(0.45, 1.0, smoothstep(0.85, 1.05, q));
+      caus += exp(-q * 30.0) * 1.6;
+    }
+  }
+  c *= 0.55 + 0.6 * lightAmt;
+  c += vec3(1.0,0.85,0.6) * caus * 0.35;
+  return mix(c, sky(rd), smoothstep(8.0, 22.0, t));   // fade into the distance
+}
+float fresnel(vec3 rd, vec3 n){ return 0.04 + 0.96 * pow(1.0 - max(dot(-rd, n), 0.0), 5.0); }
+// nearest ball (index, or -1) along a ray
+int nearest(vec3 ro, vec3 rd, out float best){
+  best = 1e9; int hit = -1; float tf;
+  for (int i = 0; i < 4; i++){
+    float t = hitSphere(ro, rd, C[i], RAD, tf);
+    if (t > 0.0 && t < best){ best = t; hit = i; }
+  }
+  return hit;
+}
+vec3 center(int k){ vec3 c = C[0]; for (int i = 0; i < 4; i++) if (i == k) c = C[i]; return c; }
+// what a ray sees if we stop tracing here: a ball is shaded in one step (sky through it + sky reflected)
+vec3 cheap(vec3 ro, vec3 rd){
+  float t; int k = nearest(ro, rd, t);
+  float tFloor = rd.y < 0.0 ? -ro.y / rd.y : 1e9;
+  if (k >= 0 && t < tFloor){
+    vec3 n = normalize(ro + rd*t - center(k));
+    return mix(sky(refract(rd, n, 1.0/IOR)) * vec3(0.75,0.85,1.0), sky(reflect(rd, n)), fresnel(rd, n));
+  }
+  if (tFloor < 1e8) return floorCol(ro + rd*tFloor, rd, tFloor);
+  return sky(rd);
+}
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5*RES) / RES.y;
+  vec3 ro = EYE, rd = normalize(CAM * vec3(uv, 1.9));
+  vec3 col = vec3(0.0), thr = vec3(1.0);
+  for (int pass = 0; pass < 6; pass++){
+    if (pass >= DEPTH){ col += thr * cheap(ro, rd); break; }
+    float t; int k = nearest(ro, rd, t);
+    float tFloor = rd.y < 0.0 ? -ro.y / rd.y : 1e9;
+    if (k < 0 || tFloor < t){
+      col += thr * (tFloor < 1e8 ? floorCol(ro + rd*tFloor, rd, tFloor) : sky(rd));
+      break;
+    }
+    // a ball: the reflected part is shaded cheaply; the refracted part goes in, out, and on to the next ball
+    vec3 c = center(k), p = ro + rd*t, n = normalize(p - c);
+    float F = fresnel(rd, n);
+    col += thr * (F * cheap(p + n*1e-3, reflect(rd, n))
+                  + vec3(1.0) * pow(max(dot(reflect(rd, n), L), 0.0), 400.0) * 3.0          // highlight
+                  + vec3(0.4,0.6,1.0) * pow(1.0 - max(dot(-rd, n), 0.0), 3.0) * 0.25);     // rim
+    thr *= (1.0 - F) * TINT;
+    vec3 r = refract(rd, n, 1.0/IOR), q = p;
+    for (int b = 0; b < 4; b++){                  // bounce around inside until the ray gets out
+      float tf; hitSphere(q - r*1e-3, r, c, RAD, tf);
+      q = q - r*1e-3 + r*tf;
+      vec3 n2 = normalize(q - c);
+      vec3 out_ = refract(r, -n2, IOR);
+      if (dot(out_, out_) > 0.5){ r = out_; break; }
+      r = reflect(r, -n2);                        // total internal reflection
+    }
+    ro = q + r*2e-3; rd = r;
+  }
+  col = col / (1.0 + col * 0.25);                        // soft tone map
+  col = pow(col, vec3(0.4545));
+  float v = 1.0 - 0.35 * dot(uv*0.9, uv*0.9);             // vignette
+  gl_FragColor = vec4(col * v, 1.0);
+}
+</script>
+<script>
+const cv = document.getElementById('cv');
+const gl = cv.getContext('webgl', {preserveDrawingBuffer: true, antialias: false});
+const P = new URLSearchParams(location.search);
+const SPIN = +(P.get('spin') || 0.55);     // rad/s around the vertical
+let DEPTH = +(P.get('depth') || 2);        // balls a ray goes through (1 = the old version, minus the lines)
+function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}'));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, document.getElementById('fs').textContent));
+gl.linkProgram(prog); gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const U = n => gl.getUniformLocation(prog, n);
+
+// 4 touching balls: 3 on the floor in a triangle, 1 on top. Edge = 2r.
+const R = 1;
+const base = [0,1,2].map(k => [2*R/Math.sqrt(3)*Math.cos(k*2*Math.PI/3), R, 2*R/Math.sqrt(3)*Math.sin(k*2*Math.PI/3)]);
+const apex = [0, R + 2*R*Math.sqrt(2/3), 0];
+const BALLS = [...base, apex];
+const CHK = {};
+{ const d = (a,b) => Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]); let ok = true;
+  for (let i = 0; i < 4; i++) for (let j = i+1; j < 4; j++) ok = ok && Math.abs(d(BALLS[i], BALLS[j]) - 2*R) < 1e-9;
+  CHK.touching = ok; if (!ok) console.error('CHK touching failed'); }
+
+function drawFrame(t){
+  const a = t * SPIN, ca = Math.cos(a), sa = Math.sin(a);
+  const cs = [];
+  for (const [x,y,z] of BALLS) cs.push(ca*x + sa*z, y, -sa*x + ca*z);
+  // camera: a little above, looking slightly down at the pile
+  const eye = [0, 3.6, 9.6], look = [0, 1.45, 0];
+  const f = norm(sub(look, eye)), r = norm(cross(f, [0,1,0])), u = cross(r, f);
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.uniform2f(U('RES'), cv.width, cv.height);
+  gl.uniform3fv(U('C'), new Float32Array(cs));
+  gl.uniform1f(U('RAD'), R);
+  gl.uniform1i(U('DEPTH'), DEPTH);
+  gl.uniform3fv(U('EYE'), eye);
+  gl.uniformMatrix3fv(U('CAM'), false, new Float32Array([...r, ...u, ...f]));
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+function sub(a,b){ return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+function cross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+function norm(a){ const l = Math.hypot(...a); return a.map(v => v/l); }
+
+// HUD: fps + depth (tap it, or press 1-5, to change how many balls a ray passes through). ?hud=0 hides it.
+const hud = document.getElementById('hud');
+if (P.get('hud') == '0') hud.style.display = 'none';
+let fps = 0, nF = 0, tF = performance.now();
+function showHud(){ hud.textContent = `${fps.toFixed(0)} fps · ${cv.width}×${cv.height} · through ${DEPTH} ball${DEPTH>1?'s':''} (tap / 1-5)`; }
+hud.onclick = () => { DEPTH = DEPTH % 5 + 1; showHud(); };
+addEventListener('keydown', e => { if (e.key >= '1' && e.key <= '5'){ DEPTH = +e.key; showHud(); } });
+if (!P.has('still')){ const t0 = performance.now(); (function loop(now){
+    drawFrame((performance.now()-t0)/1000);
+    nF++; if (now - tF > 500){ fps = nF * 1000 / (now - tF); nF = 0; tF = now; showHud(); }
+    requestAnimationFrame(loop); })(performance.now()); }
+else { drawFrame(+P.get('still') || 0); showHud(); }
+</script></body></html>

@@ -1,0 +1,42 @@
+{
+ "a": {
+  "name": "Labyrinth",
+  "in": 81,
+  "out": 177,
+  "n": 177,
+  "in_s": 2.7,
+  "out_s": 5.9
+ },
+ "b": {
+  "name": "CGI spin",
+  "in": 0,
+  "out": 78,
+  "n": 120,
+  "in_s": 0,
+  "out_s": 2.6
+ },
+ "c": {
+  "name": "You: pretend fail",
+  "in": 0,
+  "out": 70,
+  "n": 70,
+  "in_s": 0,
+  "out_s": 2.33
+ },
+ "d": {
+  "name": "CGI + arrow",
+  "in": 0,
+  "out": 57,
+  "n": 105,
+  "in_s": 0,
+  "out_s": 1.9
+ },
+ "e": {
+  "name": "You: real rotation",
+  "in": 0,
+  "out": 183,
+  "n": 258,
+  "in_s": 0,
+  "out_s": 6.1
+ }
+}

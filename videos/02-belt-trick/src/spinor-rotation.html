@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spinor Rotation - 720° Belt Trick</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+canvas { display: block; }
+#controls {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 12px 24px; background: rgba(10,10,30,0.85);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+#controls label { font-size: 13px; white-space: nowrap; }
+#controls input[type=range] { vertical-align: middle; }
+#angleSlider { width: 400px; }
+#gridSlider, #radiusSlider { width: 120px; }
+#controls button {
+  background: rgba(255,255,255,0.1); color: #e0e0e0; border: 1px solid rgba(255,255,255,0.2);
+  padding: 4px 10px; border-radius: 4px; font-size: 13px; cursor: pointer;
+}
+#controls button:hover { background: rgba(255,255,255,0.2); }
+#controls button.active { background: rgba(126,207,255,0.25); border-color: #7ecfff; }
+#angle-display { font-weight: bold; min-width: 60px; display: inline-block; color: #7ecfff; font-variant-numeric: tabular-nums; }
+#info {
+  position: absolute; bottom: 16px; left: 16px; right: 16px;
+  font-size: 12px; color: rgba(255,255,255,0.5); text-align: center;
+}
+.tangled { color: #ff6b6b; font-weight: bold; }
+.flat { color: #6bffa0; font-weight: bold; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="controls">
+  <label>Rotation: <input type="range" id="angleSlider" min="0" max="720" step="0.1" value="0">
+    <span id="angle-display">0.0°</span>
+  </label>
+  <label>Grid: <input type="range" id="gridSlider" min="8" max="1000" step="1" value="64">
+    <span id="grid-display">64</span>
+  </label>
+  <label>Inner R: <input type="range" id="innerSlider" min="5" max="80" step="1" value="20">
+    <span id="inner-display">20%</span>
+  </label>
+  <label>Outer R: <input type="range" id="outerSlider" min="20" max="95" step="1" value="70">
+    <span id="outer-display">70%</span>
+  </label>
+  <button id="playBtn">&#9654; Play</button>
+  <button id="loopBtn">&#8635; Loop</button>
+  <button id="resetView">Reset View</button>
+  <span id="status"></span>
+</div>
+<div id="info">Drag to orbit · Scroll to zoom · Space to play/pause · The inner disk rotates by the chosen angle; the boundary stays fixed.<br>At 360° the sheet is <span class="tangled">tangled</span>. At 720° it's <span class="flat">flat</span> again — the spinor double-cover in action.</div>
+
+<script>
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+if (!gl) { document.body.innerHTML = '<h1 style="color:white;padding:40px">WebGL not supported</h1>'; }
+
+const vsrc = `
+attribute vec3 aPos;
+attribute float aCheck;
+attribute float aRegion;
+uniform mat4 uMVP;
+uniform mat4 uModel;
+varying vec3 vWorldPos;
+varying float vCheck;
+varying float vRegion;
+void main() {
+  gl_Position = uMVP * vec4(aPos, 1.0);
+  vWorldPos = (uModel * vec4(aPos, 1.0)).xyz;
+  vCheck = aCheck;
+  vRegion = aRegion;
+}`;
+
+const fsrc = `
+#extension GL_OES_standard_derivatives : enable
+precision mediump float;
+varying vec3 vWorldPos;
+varying float vCheck;
+varying float vRegion;
+uniform vec3 uLightDir;
+uniform vec3 uLightDir2;
+void main() {
+  vec3 dx = dFdx(vWorldPos);
+  vec3 dy = dFdy(vWorldPos);
+  vec3 n = normalize(cross(dx, dy));
+
+  float diff1 = abs(dot(n, uLightDir));
+  float diff2 = abs(dot(n, uLightDir2));
+  float light = 0.18 + 0.52 * diff1 + 0.30 * diff2;
+
+  // Inner disk: warm white/gold, Annulus: cool blue-tinted, Outer: neutral
+  vec3 warmW = vec3(1.0, 0.95, 0.82);
+  vec3 warmB = vec3(0.18, 0.14, 0.08);
+  vec3 coolW = vec3(0.82, 0.90, 1.0);
+  vec3 coolB = vec3(0.06, 0.10, 0.18);
+  vec3 neutW = vec3(0.88, 0.88, 0.86);
+  vec3 neutB = vec3(0.12, 0.12, 0.14);
+
+  vec3 white = mix(mix(warmW, coolW, vRegion), neutW, step(0.99, vRegion));
+  vec3 black = mix(mix(warmB, coolB, vRegion), neutB, step(0.99, vRegion));
+  vec3 base = mix(black, white, vCheck);
+
+  // Annular region (0 < vRegion < 1) is semi-transparent
+  float isAnnulus = step(0.01, vRegion) * (1.0 - step(0.99, vRegion));
+  float alpha = mix(1.0, 0.55, isAnnulus);
+
+  gl_FragColor = vec4(base * light, alpha);
+}`;
+
+function compileShader(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+
+gl.getExtension('OES_standard_derivatives');
+gl.getExtension('OES_element_index_uint');
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(vsrc, gl.VERTEX_SHADER));
+gl.attachShader(prog, compileShader(fsrc, gl.FRAGMENT_SHADER));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+
+const aPos = gl.getAttribLocation(prog, 'aPos');
+const aCheck = gl.getAttribLocation(prog, 'aCheck');
+const aRegion = gl.getAttribLocation(prog, 'aRegion');
+const uMVP = gl.getUniformLocation(prog, 'uMVP');
+const uModel = gl.getUniformLocation(prog, 'uModel');
+const uLightDir = gl.getUniformLocation(prog, 'uLightDir');
+const uLightDir2 = gl.getUniformLocation(prog, 'uLightDir2');
+
+gl.enableVertexAttribArray(aPos);
+gl.enableVertexAttribArray(aCheck);
+gl.enableVertexAttribArray(aRegion);
+
+const posBuf = gl.createBuffer();
+const checkBuf = gl.createBuffer();
+const regionBuf = gl.createBuffer();
+
+// --- Matrix math ---
+function mat4Ident() { const m=new Float32Array(16); m[0]=m[5]=m[10]=m[15]=1; return m; }
+function mat4Mul(a, b) {
+  const r = new Float32Array(16);
+  for (let i=0;i<4;i++) for (let j=0;j<4;j++) {
+    r[j*4+i] = a[i]*b[j*4] + a[4+i]*b[j*4+1] + a[8+i]*b[j*4+2] + a[12+i]*b[j*4+3];
+  }
+  return r;
+}
+function mat4Persp(fov, asp, near, far) {
+  const f = 1/Math.tan(fov/2), nf=1/(near-far);
+  const m = new Float32Array(16);
+  m[0]=f/asp; m[5]=f; m[10]=(far+near)*nf; m[11]=-1; m[14]=2*far*near*nf;
+  return m;
+}
+function mat4LookAt(eye, center, up) {
+  const zx=eye[0]-center[0], zy=eye[1]-center[1], zz=eye[2]-center[2];
+  let l=Math.sqrt(zx*zx+zy*zy+zz*zz);
+  const fz=[zx/l,zy/l,zz/l];
+  const sx=up[1]*fz[2]-up[2]*fz[1], sy=up[2]*fz[0]-up[0]*fz[2], sz=up[0]*fz[1]-up[1]*fz[0];
+  l=Math.sqrt(sx*sx+sy*sy+sz*sz);
+  const fx=[sx/l,sy/l,sz/l];
+  const fy=[fz[1]*fx[2]-fz[2]*fx[1], fz[2]*fx[0]-fz[0]*fx[2], fz[0]*fx[1]-fz[1]*fx[0]];
+  const m=mat4Ident();
+  m[0]=fx[0];m[4]=fx[1];m[8]=fx[2];m[12]=-(fx[0]*eye[0]+fx[1]*eye[1]+fx[2]*eye[2]);
+  m[1]=fy[0];m[5]=fy[1];m[9]=fy[2];m[13]=-(fy[0]*eye[0]+fy[1]*eye[1]+fy[2]*eye[2]);
+  m[2]=fz[0];m[6]=fz[1];m[10]=fz[2];m[14]=-(fz[0]*eye[0]+fz[1]*eye[1]+fz[2]*eye[2]);
+  return m;
+}
+
+const tau = 2 * Math.PI;
+
+// --- State ---
+let gridN = 64;
+let innerRadius = 0.20;
+let outerRadius = 0.70;
+let angleDeg = 0;
+let camTheta = 0.5, camPhi = 0.6, camDist = 3.2;
+let playing = false;
+let looping = false;
+let playStartTime = 0;
+const PLAY_DURATION = 6000; // ms for 0→720°
+
+// --- Build mesh ---
+function buildMesh() {
+  const N = gridN;
+  const alpha = angleDeg * Math.PI / 180;
+
+  const gridPos = new Array((N+1)*(N+1));
+  const gridRegion = new Array((N+1)*(N+1));
+
+  for (let j = 0; j <= N; j++) {
+    for (let i = 0; i <= N; i++) {
+      const idx = j * (N+1) + i;
+      const x = (i / N) * 2 - 1;
+      const y = (j / N) * 2 - 1;
+      const dist = Math.sqrt(x * x + y * y);
+
+      if (dist < outerRadius) {
+        // BELT TRICK — adapted from Shadertoy by flockaroo (after Jason Hise).
+        //
+        // Four rotations: R_z(ang) · R_x(π·f) · R_z(-ang) · R_x(-π·f)
+        //
+        // Flat at alpha=0 and alpha=4π. Inner disk Z-rotates by alpha.
+        // Annular region deforms through 3D — the belt trick!
+
+        let falloff;
+        if (dist <= innerRadius) {
+          falloff = 1.0;
+        } else {
+          falloff = 1.0 - (dist - innerRadius) / (outerRadius - innerRadius);
+          falloff = falloff * falloff * (3 - 2 * falloff);
+        }
+
+        // region: 0 = inner disk, 0..1 = annulus, 1 = outer boundary
+        gridRegion[idx] = dist <= innerRadius ? 0.0 :
+          (dist - innerRadius) / (outerRadius - innerRadius);
+
+        const ang = alpha / 2;
+        const tilt = Math.PI * falloff;
+
+        let px = x, py = y, pz = 0;
+
+        // Step 0: R_x(-tilt) — undo initial tilt (flat at alpha=0)
+        let c = Math.cos(-tilt), s = Math.sin(-tilt);
+        let ny = py * c - pz * s;
+        let nz = py * s + pz * c;
+        py = ny; pz = nz;
+
+        // Step 1: R_z(-ang)
+        c = Math.cos(-ang); s = Math.sin(-ang);
+        let nx = px * c - py * s;
+        ny = px * s + py * c;
+        px = nx; py = ny;
+
+        // Step 2: R_x(+tilt)
+        c = Math.cos(tilt); s = Math.sin(tilt);
+        ny = py * c - pz * s;
+        nz = py * s + pz * c;
+        py = ny; pz = nz;
+
+        // Step 3: R_z(+ang)
+        c = Math.cos(ang); s = Math.sin(ang);
+        nx = px * c - py * s;
+        ny = px * s + py * c;
+        px = nx; py = ny;
+
+        gridPos[idx] = [px, py, pz];
+      } else {
+        gridPos[idx] = [x, y, 0];
+        gridRegion[idx] = 1.0;
+      }
+    }
+  }
+
+  // Build flat-shaded triangles
+  const numTris = N * N * 2;
+  const positions = new Float32Array(numTris * 3 * 3);
+  const checkFlags = new Float32Array(numTris * 3);
+  const regionFlags = new Float32Array(numTris * 3);
+  let vi = 0, ci = 0, ri = 0;
+
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const a = j * (N+1) + i;
+      const b = a + 1;
+      const c = a + (N+1);
+      const d = c + 1;
+
+      const check = (i + j) % 2 === 0 ? 1.0 : 0.0;
+      // Average region of the 4 corners for this cell
+      const reg = (gridRegion[a] + gridRegion[b] + gridRegion[c] + gridRegion[d]) / 4;
+
+      const pa = gridPos[a], pb = gridPos[b], pc = gridPos[c], pd = gridPos[d];
+
+      positions[vi++]=pa[0]; positions[vi++]=pa[1]; positions[vi++]=pa[2];
+      positions[vi++]=pb[0]; positions[vi++]=pb[1]; positions[vi++]=pb[2];
+      positions[vi++]=pc[0]; positions[vi++]=pc[1]; positions[vi++]=pc[2];
+      checkFlags[ci++]=check; checkFlags[ci++]=check; checkFlags[ci++]=check;
+      regionFlags[ri++]=reg; regionFlags[ri++]=reg; regionFlags[ri++]=reg;
+
+      positions[vi++]=pb[0]; positions[vi++]=pb[1]; positions[vi++]=pb[2];
+      positions[vi++]=pd[0]; positions[vi++]=pd[1]; positions[vi++]=pd[2];
+      positions[vi++]=pc[0]; positions[vi++]=pc[1]; positions[vi++]=pc[2];
+      checkFlags[ci++]=check; checkFlags[ci++]=check; checkFlags[ci++]=check;
+      regionFlags[ri++]=reg; regionFlags[ri++]=reg; regionFlags[ri++]=reg;
+    }
+  }
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, checkBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, checkFlags, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, regionBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, regionFlags, gl.DYNAMIC_DRAW);
+
+  return numTris * 3;
+}
+
+// --- Rendering ---
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function render() {
+  gl.clearColor(0.06, 0.06, 0.12, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  const numVerts = buildMesh();
+
+  const aspect = canvas.width / canvas.height;
+  const proj = mat4Persp(Math.PI / 4, aspect, 0.1, 100);
+
+  const ex = camDist * Math.sin(camPhi) * Math.sin(camTheta);
+  const ey = camDist * Math.cos(camPhi);
+  const ez = camDist * Math.sin(camPhi) * Math.cos(camTheta);
+  const view = mat4LookAt([ex, ey, ez], [0, 0, 0], [0, 1, 0]);
+  const model = mat4Ident();
+  const mvp = mat4Mul(proj, mat4Mul(view, model));
+
+  gl.uniformMatrix4fv(uMVP, false, mvp);
+  gl.uniformMatrix4fv(uModel, false, model);
+
+  let ld = [0.4, 0.7, 0.5];
+  let ll = Math.sqrt(ld[0]*ld[0]+ld[1]*ld[1]+ld[2]*ld[2]);
+  gl.uniform3f(uLightDir, ld[0]/ll, ld[1]/ll, ld[2]/ll);
+  ld = [-0.6, 0.3, -0.4];
+  ll = Math.sqrt(ld[0]*ld[0]+ld[1]*ld[1]+ld[2]*ld[2]);
+  gl.uniform3f(uLightDir2, ld[0]/ll, ld[1]/ll, ld[2]/ll);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, checkBuf);
+  gl.vertexAttribPointer(aCheck, 1, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, regionBuf);
+  gl.vertexAttribPointer(aRegion, 1, gl.FLOAT, false, 0, 0);
+
+  gl.drawArrays(gl.TRIANGLES, 0, numVerts);
+
+  // Status
+  const status = document.getElementById('status');
+  const a = angleDeg % 720;
+  if (Math.abs(a) < 0.15 || Math.abs(a - 720) < 0.15) {
+    status.innerHTML = '<span style="color:#6bffa0;font-weight:bold">FLAT — Identity</span>';
+  } else if (Math.abs(a - 360) < 0.15) {
+    status.innerHTML = '<span style="color:#ff6b6b;font-weight:bold">360° — TANGLED</span>';
+  } else {
+    status.innerHTML = '';
+  }
+}
+
+// --- Easing: smooth start/pause at 360°/end ---
+function easeAngle(t) {
+  // t in [0,1] → angle in [0,720]
+  // Slow down near 0, 360, 720 for dramatic effect
+  // Use a sine-based easing that has zero derivative at 0, 0.5, 1
+  const smoothT = t - Math.sin(tau * t) / tau;
+  return smoothT * 720;
+}
+
+// --- Animation loop ---
+let lastFrameTime = 0;
+function frame(t) {
+  if (playing) {
+    if (!playStartTime) playStartTime = t;
+    const elapsed = t - playStartTime;
+    let progress = elapsed / PLAY_DURATION;
+
+    if (looping) {
+      progress = progress % 1;
+    } else {
+      if (progress >= 1) { progress = 1; playing = false; updatePlayBtn(); }
+    }
+
+    angleDeg = easeAngle(progress);
+    document.getElementById('angleSlider').value = angleDeg;
+    document.getElementById('angle-display').textContent = angleDeg.toFixed(1) + '°';
+
+    // Gentle camera orbit during playback
+    if (!dragging) {
+      camTheta += 0.002;
+    }
+  }
+  render();
+  lastFrameTime = t;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function updatePlayBtn() {
+  const btn = document.getElementById('playBtn');
+  btn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  btn.classList.toggle('active', playing);
+}
+
+// --- Controls ---
+document.getElementById('angleSlider').addEventListener('input', e => {
+  angleDeg = +e.target.value;
+  document.getElementById('angle-display').textContent = angleDeg.toFixed(1) + '°';
+  playing = false;
+  updatePlayBtn();
+});
+document.getElementById('gridSlider').addEventListener('input', e => {
+  gridN = +e.target.value;
+  document.getElementById('grid-display').textContent = gridN;
+});
+document.getElementById('innerSlider').addEventListener('input', e => {
+  innerRadius = +e.target.value / 100;
+  document.getElementById('inner-display').textContent = e.target.value + '%';
+});
+document.getElementById('outerSlider').addEventListener('input', e => {
+  outerRadius = +e.target.value / 100;
+  document.getElementById('outer-display').textContent = e.target.value + '%';
+});
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (playing) {
+    playing = false;
+  } else {
+    playStartTime = 0;
+    playing = true;
+  }
+  updatePlayBtn();
+});
+document.getElementById('loopBtn').addEventListener('click', () => {
+  looping = !looping;
+  document.getElementById('loopBtn').classList.toggle('active', looping);
+  if (looping && !playing) {
+    playStartTime = 0;
+    playing = true;
+    updatePlayBtn();
+  }
+});
+document.getElementById('resetView').addEventListener('click', () => {
+  camTheta = 0.5; camPhi = 0.6; camDist = 3.2;
+});
+
+// Spacebar to play/pause
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    document.getElementById('playBtn').click();
+  }
+});
+
+// --- Mouse orbit ---
+let dragging = false, lastX, lastY;
+canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+window.addEventListener('mouseup', () => { dragging = false; });
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  camTheta += (e.clientX - lastX) * 0.008;
+  camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi - (e.clientY - lastY) * 0.008));
+  lastX = e.clientX; lastY = e.clientY;
+});
+canvas.addEventListener('wheel', e => {
+  camDist = Math.max(1.5, Math.min(8, camDist + e.deltaY * 0.005));
+  e.preventDefault();
+}, { passive: false });
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) { dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+});
+canvas.addEventListener('touchmove', e => {
+  if (!dragging || e.touches.length !== 1) return;
+  camTheta += (e.touches[0].clientX - lastX) * 0.008;
+  camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi - (e.touches[0].clientY - lastY) * 0.008));
+  lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', () => { dragging = false; });
+</script>
+</body>
+</html>

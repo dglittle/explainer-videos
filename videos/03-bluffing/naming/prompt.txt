@@ -1,0 +1,9 @@
+You are helping Greg Little rename a YouTube video. Brainstorm titles. No tools needed; just think and answer.
+
+CONTEXT
+- Greg's channel (@glittle312) is small and personal: short math/visual curiosities he makes with AI help. He versions videos like software: recent titles are "seen reddish-green?, v0.2" and "a rubber chessboard magic trick (the belt trick), v0.2". Lower-case, plain, curious tone. Titles end with ", v0.1".
+- The video (4 min, Greg's own voice-over) is currently titled "Tiny Poker: bluffing is math, v0.1". Greg's note: that title makes it sound like it's ABOUT "tiny poker", but really it's about the QUESTION of whether bluffing is actually good (mathematically, not just psychology). The tiny game is only the tool.
+- What the video does: opens with "Is bluffing in poker actually a good idea, mathematically? Or is it just psychology?" Then a toy game: four cards (1-4), one each, 4 chips each, small blind 1 / big blind 2, fold / call / raise all-in. Each player has 256 strategies, so a 256x256 payoff matrix; a linear program finds the best mix against an opponent who knows your mix. Result: the small blind's best strategy bluffs — with the worst card (a 1), raise all-in exactly one third of the time. The big blind bluffs a third of the time too. Why a third: then a quarter of raises are bluffs, which makes calling and folding exactly equally good for the opponent. Without bluffing, the small blind wins 4/36 per hand instead of 5/36. Ends: "So bluffing isn't just psychology. Even in this tiny game, the mathematically best strategy bluffs, with exactly the right frequency."
+
+TASK
+Give ~15 title ideas, grouped by angle (question-style, answer-style, the "one third" hook, etc.), each ending in ", v0.1". Star your top 3, name one single pick, and list traps to avoid (e.g. clickbait that over-promises, titles that give nothing away vs. too much). Keep it short.

@@ -1,0 +1,117 @@
+[
+ {
+  "folder": "01-yellow-is-red-green",
+  "youtube": [
+   {
+    "id": "9OENcy-O1X0",
+    "title": "yellow is red-green, v0.1",
+    "url": "https://youtu.be/9OENcy-O1X0"
+   },
+   {
+    "id": "6TJWpPFuMHk",
+    "title": "seen reddish-green?, v0.2",
+    "url": "https://youtu.be/6TJWpPFuMHk"
+   }
+  ]
+ },
+ {
+  "folder": "02-belt-trick",
+  "youtube": [
+   {
+    "id": "kCnTGcyHGoc",
+    "title": "a rubber chessboard magic trick (the belt trick), v0.2",
+    "url": "https://youtu.be/kCnTGcyHGoc"
+   }
+  ]
+ },
+ {
+  "folder": "03-bluffing",
+  "youtube": [
+   {
+    "id": "iEu0NNmp28E",
+    "title": "is bluffing actually a good idea, mathematically?, v0.1",
+    "url": "https://youtu.be/iEu0NNmp28E"
+   }
+  ]
+ },
+ {
+  "folder": "04-epr-weird",
+  "youtube": [
+   {
+    "id": "toD7BWe4QeU",
+    "title": "why is the EPR paradox weird?, v0.1",
+    "url": "https://youtu.be/toD7BWe4QeU"
+   }
+  ]
+ },
+ {
+  "folder": "05-matrix-multiply",
+  "youtube": [
+   {
+    "id": "M6-sdPYdZyY",
+    "title": "a nicer way to multiply matrices by hand, v0.1",
+    "url": "https://youtu.be/M6-sdPYdZyY"
+   }
+  ]
+ },
+ {
+  "folder": "06-quantum-turing",
+  "youtube": [
+   {
+    "id": "D7K6TvOLo7g",
+    "title": "the Turing machine of quantum computation, v0.1",
+    "url": "https://youtu.be/D7K6TvOLo7g"
+   }
+  ]
+ },
+ {
+  "folder": "07-circuit-diagrams",
+  "youtube": [
+   {
+    "id": "SrnDeKmCIws",
+    "title": "from circuit diagrams to vector × matrix, v0.1",
+    "url": "https://youtu.be/SrnDeKmCIws"
+   }
+  ]
+ },
+ {
+  "folder": "08-double-slit",
+  "youtube": [
+   {
+    "id": "qdw7IvXof4k",
+    "title": "the double-slit experiment as a quantum computation, v0.1",
+    "url": "https://youtu.be/qdw7IvXof4k"
+   }
+  ]
+ },
+ {
+  "folder": "09-epr-matrix-math",
+  "youtube": [
+   {
+    "id": "9glmM8-isOQ",
+    "title": "the EPR paradox, as matrix math, v0.1",
+    "url": "https://youtu.be/9glmM8-isOQ"
+   }
+  ]
+ },
+ {
+  "folder": "10-crystal-pyramid",
+  "youtube": [
+   {
+    "id": "C3tgVoma3xs",
+    "title": "the labyrinth crystal-ball pyramid, with tennis balls, v0.1",
+    "url": "https://youtu.be/C3tgVoma3xs"
+   }
+  ]
+ },
+ {
+  "folder": "11-color-golf",
+  "youtube": [
+   {
+    "id": "iujHMK7D6OY",
+    "title": "color golf, v0.1",
+    "url": "https://youtu.be/iujHMK7D6OY"
+   }
+  ]
+ }
+]

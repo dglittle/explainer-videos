@@ -1,0 +1,342 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the magic trick · spinor v2 · voice-over booth</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0d0d0d;color:#ddd;font:15px/1.4 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #222;flex-wrap:wrap}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+h1 b{background:linear-gradient(90deg,#f00,#808000,#0f0);-webkit-background-clip:text;color:transparent}
+button{background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c2c}button:disabled{opacity:.4;cursor:default}
+button.rec{background:#7a1010;border-color:#c33}button.rec.on{background:#e22;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#meter{width:110px;height:8px;background:#222;border-radius:4px;overflow:hidden}#meter i{display:block;height:100%;width:0;background:#4c4}
+#clock{font:600 16px ui-monospace,monospace;min-width:60px}
+.small{font-size:12px;color:#888}
+#stage{position:relative;height:62vh;overflow:hidden;border-bottom:1px solid #222}
+#lines{position:absolute;left:0;right:0;transition:transform .35s ease}
+.ln{padding:14px 8vw;font-size:30px;line-height:1.3;color:#555;cursor:pointer;transition:color .25s,font-size .25s}
+.ln .dir{display:block;font-size:14px;color:#6a6a3a;font-style:italic;margin-bottom:2px}
+.ln.cur{color:#fff;font-size:40px}.ln.cur .dir{color:#cc4}
+.ln.done{color:#3a3a3a}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:140px;font-weight:700;background:#000a;color:#fff}
+#hint{position:absolute;bottom:8px;right:14px;font-size:12px;color:#666}
+main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:14px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{font-size:14px;margin:0 0 8px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.take{border:1px solid #2a2a2a;border-radius:8px;padding:9px 11px;margin-bottom:9px;background:#141414}
+.take.sel{border-color:#886}
+.take audio{width:100%;height:34px;margin:6px 0}
+.take input{background:#111;color:#ddd;border:1px solid #333;border-radius:5px;padding:5px 7px;width:60%}
+.ok{color:#5c5}.bad{color:#e66}
+textarea{width:100%;height:300px;background:#111;color:#ccc;border:1px solid #333;border-radius:6px;font:13px/1.45 ui-monospace,monospace;padding:8px;box-sizing:border-box}
+select{background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px}
+.ln{display:flex;align-items:center;gap:18px}.ln .tx{flex:1}
+.vth{display:flex;gap:6px;flex:none;opacity:.35;transition:opacity .25s}
+.vth figure{margin:0;position:relative}.vth canvas{display:block;width:120px;aspect-ratio:16/9;border-radius:4px;border:1px solid #333;transition:width .25s;cursor:zoom-in}
+.vth figcaption{position:absolute;left:4px;bottom:2px;font-size:10px;color:#aaa;text-shadow:0 0 3px #000;font-style:normal}
+.ln.cur .vth{opacity:1}.ln.cur .vth canvas{width:220px}
+body.nof .vth{display:none}
+#vbig{position:fixed;inset:0;background:#000d;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+#vbig canvas{width:min(92vw,160vh);aspect-ratio:16/9;border:1px solid #444}#vbig span{margin-top:8px;color:#aaa;font-size:13px}
+</style></head><body>
+<header>
+ <h1>the <b>magic trick</b> · spinor v2 · voice-over booth <span class=small>Oct-19 script · <a href="spinor-v2-anim.html" style="color:#888">the animation</a></span></h1>
+ <button id="rec" class="rec">● Record</button>
+ <button id="stop" disabled>■ Stop</button>
+ <span id="clock">0:00.0</span>
+ <div id="meter"><i></i></div>
+ <select id="mic" title="microphone"></select>
+ <label class="small"><input type="checkbox" id="clean"> mic cleanup (noise/echo/gain)</label>
+ <label class="small"><input type="checkbox" id="count" checked> 3-2-1</label>
+ <label class="small" title="start / middle / end of what the video shows during each line"><input type="checkbox" id="frames" checked> frames</label>
+</header>
+<div id="stage"><div id="lines"></div><div id="cd"></div>
+ <div id="vbig"><canvas width="1920" height="1080"></canvas><span></span></div>
+ <div id="hint">Space / → / click = next line · ← = back · R = record · S / Esc = stop</div></div>
+<main>
+ <section>
+  <h2>Takes <span class="small">(kept in this browser until you delete them)</span></h2>
+  <div id="takes"><div class="small">No takes yet. Press ● Record (or R), read each line, tap Space when you move to the next one.</div></div>
+  <h2 style="margin-top:18px">On the server <span class="small">(what Crystal can get)</span></h2>
+  <div id="server" class="small">…</div>
+ </section>
+ <section>
+  <h2>Script <span class="small">one spoken line per row · rows in (parentheses) are stage directions for the next line</span></h2>
+  <textarea id="script" spellcheck="false"></textarea>
+  <div style="margin-top:6px"><button id="apply">Use this script</button> <button id="reset">Reset to the Oct-19 script</button> <span id="sst" class="small"></span></div>
+ </section>
+</main>
+<script src="spinor-knight-mesh.js"></script>
+<script>
+const API='https://test.bloop.monster:61920', K='<VOICE_KEY>';
+const DEFAULT=`(flat rubber chessboard, knight in the middle)
+This is a kind of magic trick.
+The setup is that we have this rubber chessboard with a knight on it, and we want to do the following thing.
+(the camera moves in · the knight's circle lights up gold)
+We want to take this circle with the knight on it in the middle,
+(a seam opens around the circle, cutting it free · it turns once, clockwise, on its own)
+and we're going to rotate it in place all the way around,
+(it goes around a second time · the seam closes)
+twice.
+(the gold fades · the ring around the circle lights up blue)
+And this middle portion
+will bend like rubber during the rotation, but in the end, it will be relaxed and flat again,
+(the blue fades at the end of the line)
+with no cheating. Nothing doing math stuff that couldn't happen in real life.
+(the plain board, waiting · take your time)
+So… do you believe me? Pause the video and try to think of whether you think this would be magical if it could happen.
+(after the line, the trick plays for ~10 s · just pause a beat, the edit will make room)
+OK… here we go!
+(the board is flat again)
+Tada!`;
+const $=id=>document.getElementById(id);
+
+// ---- video frames: the drawing code below is copied verbatim from anim.html (the page the video renders from) ----
+const VID=(()=>{const cv=Object.assign(document.createElement('canvas'),{width:1920,height:1080}), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+// Needs: a 1920×1080 2-D canvas `cv` with context `ctx`, and the global knightMesh (spinor-knight-mesh.js).
+// drawFrame(t) draws anim time t (seconds, 0..T) into cv. Board geometry and shaders are from
+// ~/Dropbox/sourcecode/quirks/spinor-rotation-mobile.html (v1), plus uniforms for the disk/donut highlight and the cut seam.
+const W=1920, H=1080, T=63;
+const ss=x=>x<=0?0:x>=1?1:x*x*(3-2*x), seg=(t,a,b)=>ss((t-a)/(b-a)), lin=(t,a,b)=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+// --- timeline (anim seconds) ---
+const HI_DISK=[[10.5,11.5],[24.6,25.6]];   // gold disk highlight in / out
+const CUT=[[14.0,14.6],[23.9,24.5]];        // seam opens / closes
+const TURN1=[15.0,19.6], TURN2=[20.2,23.6]; // the cut-out disk turns once, then again
+const HI_RING=[[25.6,26.6],[37.6,38.6]];    // blue donut highlight in / out
+const PUSH=[[9.8,11.8],[25.0,27.0],[46.0,49.0]];  // camera: in for the disk, half out for the donut, back out before the trick
+const MAGIC=[50.0,60.0];                    // v1's 720° spinor motion
+function state(t){
+ const hiD=seg(t,...HI_DISK[0])-seg(t,...HI_DISK[1]), hiR=seg(t,...HI_RING[0])-seg(t,...HI_RING[1]);
+ const cut=seg(t,...CUT[0])-seg(t,...CUT[1]);
+ const turns=seg(t,...TURN1)+seg(t,...TURN2);                       // 0..2 turns of the cut disk
+ const m=lin(t,...MAGIC), magic=(m-Math.sin(2*Math.PI*m)/(2*Math.PI))*720; // v1 easing, degrees
+ const push=0.16*seg(t,...PUSH[0])-0.08*seg(t,...PUSH[1])-0.08*seg(t,...PUSH[2]);
+ return {hiD,hiR,cut,cutDeg:turns*360,magic,push};
+}
+// --- WebGL, drawn offscreen and copied into cv ---
+const glc=document.createElement('canvas'); glc.width=W; glc.height=H;
+const gl=glc.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:true});
+const NOISE=`
+vec2 hash2(vec2 p){p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));return fract(sin(p)*43758.5453);}
+float vnoise(vec2 p){vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);
+ float a=dot(hash2(i),f),b=dot(hash2(i+vec2(1.0,0.0)),f-vec2(1.0,0.0)),c=dot(hash2(i+vec2(0.0,1.0)),f-vec2(0.0,1.0)),d=dot(hash2(i+vec2(1.0,1.0)),f-vec2(1.0,1.0));
+ return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);}
+float fbm(vec2 p){float v=0.0,a=0.5;vec2 shift=vec2(100.0);mat2 rot=mat2(0.866,0.5,-0.5,0.866);
+ for(int i=0;i<5;i++){v+=a*vnoise(p);p=rot*p*2.0+shift;a*=0.5;}return v;}`;
+const boardVS=`
+attribute vec2 aGrid; attribute float aCheck;
+uniform mat4 uMVP; uniform float uAng, uDisk, uInnerR, uOuterR;
+varying vec3 vNormal; varying float vCheck, vR, vIn; varying vec2 vUV;
+vec3 rz(vec3 q,float a){float c=cos(a),s=sin(a);return vec3(q.x*c-q.y*s,q.x*s+q.y*c,q.z);}
+vec3 rx(vec3 q,float a){float c=cos(a),s=sin(a);return vec3(q.x,q.y*c-q.z*s,q.y*s+q.z*c);}
+vec3 deform(vec2 p){
+ float d=length(p);
+ if(d>=uOuterR) return vec3(p,0.0);
+ if(d<=uInnerR) return rz(vec3(p,0.0),uDisk);              // the knight's disk: a plain turn
+ float f=1.0-(d-uInnerR)/(uOuterR-uInnerR); f=f*f*(3.0-2.0*f);
+ float tilt=3.14159265*f;                                   // v1's ring deformation, same rotation order
+ return rz(rx(rz(rx(vec3(p,0.0),-tilt),-uAng),tilt),uAng);
+}
+void main(){
+ vec3 pos=deform(aGrid); gl_Position=uMVP*vec4(pos,1.0);
+ float e=0.002;
+ vec3 dx=deform(aGrid+vec2(e,0.0))-deform(aGrid-vec2(e,0.0)), dy=deform(aGrid+vec2(0.0,e))-deform(aGrid-vec2(0.0,e));
+ vNormal=normalize(cross(dx,dy)); vCheck=aCheck; vUV=aGrid*0.5; vR=length(aGrid); vIn=vR<=uInnerR?1.0:0.0;
+}`;
+const boardFS=`
+precision highp float;
+varying vec3 vNormal; varying float vCheck, vR, vIn; varying vec2 vUV;
+uniform vec3 uLightDir, uLightDir2; uniform float uInnerR, uOuterR, uHiD, uHiR, uCut;
+${NOISE}
+void main(){
+ if(uCut>0.0 && vIn>0.001 && vIn<0.999) discard;   // triangles straddling the cut would stretch across the turning disk
+ if(uCut>0.0 && abs(vR-uInnerR)<0.013*uCut){gl_FragColor=vec4(0.0,0.0,0.0,1.0);return;}   // the seam
+ vec3 n=normalize(vNormal);
+ float light=0.18+0.52*abs(dot(n,uLightDir))+0.30*abs(dot(n,uLightDir2));
+ vec2 uv=vUV;
+ float tw=fbm(uv*3.0); vec2 w=uv+tw*1.5;
+ float v1=pow(abs(sin(w.x*8.0+w.y*5.0+fbm(w*6.0)*6.0)),8.0), v2=pow(abs(sin(w.x*5.0-w.y*7.0+fbm(w*5.0+vec2(30.0))*5.0)),10.0),
+       v3=pow(abs(sin(w.x*12.0+w.y*3.0+fbm(w*8.0+vec2(60.0))*4.0)),12.0);
+ float veins=max(v1,max(v2,v3*0.7)), soft=fbm(uv*1.5)*0.08;
+ vec3 dark=mix(vec3(0.08,0.08,0.09)+soft,vec3(0.30,0.29,0.28),veins*0.6);
+ vec2 w2=uv+fbm(uv*2.5+vec2(50.0))*1.5;
+ float v4=pow(abs(sin(w2.y*7.0+w2.x*4.0+fbm(w2*5.5+vec2(80.0))*5.0)),8.0), v5=pow(abs(sin(w2.x*6.0+w2.y*9.0+fbm(w2*7.0+vec2(40.0))*4.0)),10.0),
+       v6=pow(abs(sin(w2.y*14.0-w2.x*3.0+fbm(w2*9.0+vec2(20.0))*3.0)),12.0);
+ float veinsL=max(v4,max(v5,v6*0.7));
+ vec3 lightC=mix(vec3(0.91,0.89,0.87)-fbm(uv*1.2+vec2(25.0))*0.06,vec3(0.55,0.53,0.52),veinsL*0.5);
+ vec3 c=mix(dark,lightC,vCheck)*light;
+ // highlights: gold disk, blue donut; everything else dims a little while one is on
+ float inD=step(vR,uInnerR), inR=step(uInnerR,vR)*step(vR,uOuterR);
+ c=mix(c,c*0.55+vec3(0.50,0.36,0.05),0.85*uHiD*inD);
+ c=mix(c,c*0.55+vec3(0.05,0.25,0.55),0.85*uHiR*inR);
+ float rimD=1.0-smoothstep(0.0,0.007,abs(vR-uInnerR)), rimO=1.0-smoothstep(0.0,0.007,abs(vR-uOuterR));
+ c=mix(c,vec3(1.0,0.82,0.30),rimD*uHiD);
+ c=mix(c,vec3(0.45,0.75,1.0),max(rimD*(1.0-uHiD),rimO)*uHiR);
+ c*=1.0-0.45*max(uHiD*(1.0-inD),uHiR*(1.0-inR));
+ gl_FragColor=vec4(c,1.0);
+}`;
+const pieceVS=`attribute vec3 aPos; attribute vec3 aNorm; uniform mat4 uMVP, uModel; varying vec3 vNormal, vPos;
+void main(){gl_Position=uMVP*vec4(aPos,1.0); vNormal=(uModel*vec4(aNorm,0.0)).xyz; vPos=aPos;}`;
+const pieceFS=`
+precision highp float; varying vec3 vNormal, vPos; uniform vec3 uLightDir, uLightDir2;
+${NOISE}
+void main(){
+ vec3 n=normalize(vNormal);
+ float light=0.18+0.52*abs(dot(n,uLightDir))+0.30*abs(dot(n,uLightDir2));
+ vec2 uv=vPos.xy*10.0+vPos.z*7.0;
+ float t1=fbm(uv*2.0); vec2 w=uv+vec2(t1*3.0,fbm(uv*2.0+vec2(5.2,1.3))*3.0);
+ float t2=fbm(w*2.0); vec2 w2=w+vec2(fbm(w*1.8+vec2(1.7,9.2))*2.5,t2*2.5);
+ float m=sin(length(w2)*3.0+fbm(w2*2.5)*8.0)*0.5+0.5; m*=m;
+ gl_FragColor=vec4(mix(vec3(0.62,0.22,0.12),vec3(0.38,0.12,0.06),m*0.7)*light,1.0);
+}`;
+function prog(vs,fs){const p=gl.createProgram();
+ for(const [s,ty] of [[vs,gl.VERTEX_SHADER],[fs,gl.FRAGMENT_SHADER]]){const x=gl.createShader(ty);gl.shaderSource(x,s);gl.compileShader(x);
+  if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(x)); gl.attachShader(p,x)}
+ gl.linkProgram(p); const u={},a={};
+ const nu=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS); for(let i=0;i<nu;i++){const n=gl.getActiveUniform(p,i).name;u[n]=gl.getUniformLocation(p,n)}
+ const na=gl.getProgramParameter(p,gl.ACTIVE_ATTRIBUTES); for(let i=0;i<na;i++){const n=gl.getActiveAttrib(p,i).name;a[n]=gl.getAttribLocation(p,n)}
+ return {p,u,a}}
+const BP=prog(boardVS,boardFS), PP=prog(pieceVS,pieceFS);
+const buf=(data,target=gl.ARRAY_BUFFER)=>{const b=gl.createBuffer();gl.bindBuffer(target,b);gl.bufferData(target,data,gl.STATIC_DRAW);return b};
+// board mesh: 256×256 cells over [-1,1]², 8×8 squares (v1)
+const GN=256, INNER=0.30, OUTER=0.85, NB=GN*GN*6;
+const gridB=(()=>{const g=new Float32Array(NB*2),c=new Float32Array(NB);let gi=0,ci=0;
+ for(let j=0;j<GN;j++)for(let i=0;i<GN;i++){const x0=i/GN*2-1,x1=(i+1)/GN*2-1,y0=j/GN*2-1,y1=(j+1)/GN*2-1,k=(Math.floor(i/32)+Math.floor(j/32))%2?1:0;
+  g.set([x0,y0,x1,y0,x0,y1,x1,y0,x1,y1,x0,y1],gi);gi+=12;for(let q=0;q<6;q++)c[ci++]=k}
+ return {g:buf(g),c:buf(c)}})();
+const b64=(s,T)=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new T(u.buffer)};
+const KN=(()=>{const idx=b64(knightMesh.idx,Uint16Array);
+ return {p:buf(b64(knightMesh.pos,Float32Array)),n:buf(b64(knightMesh.norm,Float32Array)),i:buf(idx,gl.ELEMENT_ARRAY_BUFFER),count:idx.length}})();
+// matrices (column-major, as in v1)
+const I4=()=>{const m=new Float32Array(16);m[0]=m[5]=m[10]=m[15]=1;return m};
+const mul=(a,b)=>{const r=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++)r[j*4+i]=a[i]*b[j*4]+a[4+i]*b[j*4+1]+a[8+i]*b[j*4+2]+a[12+i]*b[j*4+3];return r};
+const persp=(f0,asp,n,fa)=>{const f=1/Math.tan(f0/2),nf=1/(n-fa),m=new Float32Array(16);m[0]=f/asp;m[5]=f;m[10]=(fa+n)*nf;m[11]=-1;m[14]=2*fa*n*nf;return m};
+function lookAt(e,c,up){const z=[e[0]-c[0],e[1]-c[1],e[2]-c[2]];let l=Math.hypot(...z);const fz=z.map(v=>v/l);
+ const s=[up[1]*fz[2]-up[2]*fz[1],up[2]*fz[0]-up[0]*fz[2],up[0]*fz[1]-up[1]*fz[0]];l=Math.hypot(...s);const fx=s.map(v=>v/l);
+ const fy=[fz[1]*fx[2]-fz[2]*fx[1],fz[2]*fx[0]-fz[0]*fx[2],fz[0]*fx[1]-fz[1]*fx[0]],m=I4(),d=(a)=>-(a[0]*e[0]+a[1]*e[1]+a[2]*e[2]);
+ m[0]=fx[0];m[4]=fx[1];m[8]=fx[2];m[12]=d(fx);m[1]=fy[0];m[5]=fy[1];m[9]=fy[2];m[13]=d(fy);m[2]=fz[0];m[6]=fz[1];m[10]=fz[2];m[14]=d(fz);return m}
+const rotZ=a=>{const m=I4(),c=Math.cos(a),s=Math.sin(a);m[0]=c;m[4]=-s;m[1]=s;m[5]=c;return m};
+const L1=(()=>{const v=[0.4,0.7,0.5],l=Math.hypot(...v);return v.map(x=>x/l)})(), L2=(()=>{const v=[-0.6,0.3,-0.4],l=Math.hypot(...v);return v.map(x=>x/l)})();
+function drawFrame(t){
+ const S=state(t);
+ // spinor mode (the trick) vs cut mode (the disk turns on its own, the ring stays flat)
+ const alpha=S.magic*Math.PI/180, cutA=S.cutDeg*Math.PI/180;
+ const diskA=-(alpha+cutA), ringA=-alpha/2;
+ // camera: v1's view, pushed toward the knight by S.push
+ const k=S.push, eye=[0,2.25*(1-k*1.6),1.4*(1-k*1.6)], vp=mul(persp(Math.PI/4,W/H,0.05,100),lookAt(eye,[0,0,0.02*k],[0,0.001,1]));
+ gl.viewport(0,0,W,H); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+ gl.useProgram(BP.p); const u=BP.u;
+ gl.uniformMatrix4fv(u.uMVP,false,vp); gl.uniform1f(u.uAng,ringA); gl.uniform1f(u.uDisk,diskA);
+ gl.uniform1f(u.uInnerR,INNER); gl.uniform1f(u.uOuterR,OUTER); gl.uniform1f(u.uHiD,S.hiD); gl.uniform1f(u.uHiR,S.hiR); gl.uniform1f(u.uCut,S.cut);
+ gl.uniform3fv(u.uLightDir,L1); gl.uniform3fv(u.uLightDir2,L2);
+ gl.bindBuffer(gl.ARRAY_BUFFER,gridB.g); gl.enableVertexAttribArray(BP.a.aGrid); gl.vertexAttribPointer(BP.a.aGrid,2,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ARRAY_BUFFER,gridB.c); gl.enableVertexAttribArray(BP.a.aCheck); gl.vertexAttribPointer(BP.a.aCheck,1,gl.FLOAT,false,0,0);
+ gl.drawArrays(gl.TRIANGLES,0,NB);
+ gl.disableVertexAttribArray(BP.a.aGrid); gl.disableVertexAttribArray(BP.a.aCheck);
+ gl.useProgram(PP.p); const model=rotZ(diskA);
+ gl.uniformMatrix4fv(PP.u.uMVP,false,mul(vp,model)); gl.uniformMatrix4fv(PP.u.uModel,false,model);
+ gl.uniform3fv(PP.u.uLightDir,L1); gl.uniform3fv(PP.u.uLightDir2,L2);
+ gl.bindBuffer(gl.ARRAY_BUFFER,KN.p); gl.enableVertexAttribArray(PP.a.aPos); gl.vertexAttribPointer(PP.a.aPos,3,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ARRAY_BUFFER,KN.n); gl.enableVertexAttribArray(PP.a.aNorm); gl.vertexAttribPointer(PP.a.aNorm,3,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,KN.i); gl.drawElements(gl.TRIANGLES,KN.count,gl.UNSIGNED_SHORT,0);
+ gl.disableVertexAttribArray(PP.a.aPos); gl.disableVertexAttribArray(PP.a.aNorm);
+ ctx.drawImage(glc,0,0);
+ return cv}
+
+return {frame:drawFrame};})();
+// each spoken line ↔ [key phrase, [anim times of its 3 frames], [their labels]]
+const VKEYS=[['magic trick',[0.5,2.0,3.4]],['rubber chessboard',[3.6,6.5,9.8]],['this circle',[10.2,11.6,13.8],['start','gold','end']],
+ ['all the way around',[14.3,17.3,19.8],['seam opens','half a turn','one turn']],['twice',[20.2,21.9,24.6],['start','1½ turns','seam closed']],
+ ['middle portion',[25.2,26.6,27.9],['start','blue','end']],['bend like rubber',[28.2,30.5,32.8]],['no cheating',[33.2,36.0,38.6]],
+ ['believe me',[38.8,42.5,46.3]],['here we go',[46.6,48.0,49.9]],['tada',[55.0,60.0,62.5],['360°: the ball','720°: flat','end']]];
+function vspan(text){const s=text.toLowerCase().replace(/’/g,"'"); const k=VKEYS.find(k=>s.includes(k[0])); if(!k)return null;
+ return k[1].map((t,i)=>[t,(k[2]||['start','middle','end'])[i]])}
+let vjob=0;
+function paintFrames(){const job=++vjob, q=[...document.querySelectorAll('canvas.vf')];
+ const step=()=>{if(job!==vjob||!q.length)return; const c=q.shift(), g=c.getContext('2d'); g.imageSmoothingQuality='high';
+  g.drawImage(VID.frame(+c.dataset.t),0,0,c.width,c.height); setTimeout(step,0)}; step()}
+function zoomFrame(t,lab){const o=$('vbig'); o.style.display='flex'; const c=o.querySelector('canvas'), g=c.getContext('2d');
+ g.imageSmoothingQuality='high'; g.drawImage(VID.frame(t),0,0,c.width,c.height); o.querySelector('span').textContent=lab+' · anim t = '+t.toFixed(1)+' s'}
+$('vbig').onclick=()=>$('vbig').style.display='none';
+$('frames').checked=localStorage.getItem('sp2-frames')!=='off';document.body.classList.toggle('nof',!$('frames').checked);
+$('frames').onchange=e=>{localStorage.setItem('sp2-frames',e.target.checked?'on':'off');document.body.classList.toggle('nof',!e.target.checked);go(cur,false)};
+let LINES=[], cur=0, rec=null, chunks=[], t0=0, cues=[], stream=null, an=null, playing=null, tick=null;
+function parse(txt){const out=[];let dir=[];for(let r of txt.split('\n')){r=r.trim();if(!r)continue;
+ if(/^\(.*\)$/.test(r)){dir.push(r.slice(1,-1));continue}out.push({text:r,dir:dir.join(' · ')});dir=[]}return out}
+function render(){$('lines').innerHTML=LINES.map((l,i)=>{const v=vspan(l.text);return `<div class="ln" data-i="${i}"><div class="tx">${l.dir?`<span class="dir">${esc(l.dir)}</span>`:''}${esc(l.text)}</div>${v?`<div class="vth">${v.map(([t,n])=>`<figure><canvas class="vf" width="384" height="216" data-t="${t}" data-n="${n}"></canvas><figcaption>${n}</figcaption></figure>`).join('')}</div>`:''}</div>`}).join('');
+ [...document.querySelectorAll('canvas.vf')].forEach(c=>c.onclick=e=>{e.stopPropagation();zoomFrame(+c.dataset.t,c.dataset.n)});paintFrames();
+ [...document.querySelectorAll('.ln')].forEach(e=>e.onclick=()=>go(+e.dataset.i));go(0)}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+function go(i,log=true){cur=Math.max(0,Math.min(LINES.length-1,i));
+ document.querySelectorAll('.ln').forEach((e,j)=>{e.classList.toggle('cur',j==cur);e.classList.toggle('done',j<cur)});
+ const e=document.querySelector(`.ln[data-i="${cur}"]`);if(!e)return;
+ const H=$('stage').clientHeight;$('lines').style.transform=`translateY(${H*0.38-e.offsetTop}px)`;
+ if(log&&rec&&rec.state==='recording')cues.push({t:+(now()).toFixed(2),line:cur})}
+const now=()=>(performance.now()-t0)/1000;
+const fmt=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+function loadScript(){const s=localStorage.getItem('sp2-script');$('script').value=s||DEFAULT;LINES=parse($('script').value);render()}
+$('apply').onclick=()=>{localStorage.setItem('sp2-script',$('script').value);LINES=parse($('script').value);render();$('sst').textContent='using '+LINES.length+' lines'};
+$('reset').onclick=()=>{localStorage.removeItem('sp2-script');loadScript();$('sst').textContent='reset'};
+// mic
+async function mics(){try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind=='audioinput');
+ const v=$('mic').value;$('mic').innerHTML=d.map(x=>`<option value="${x.deviceId}">${esc(x.label||'microphone')}</option>`).join('');if(v)$('mic').value=v}catch(e){}}
+async function openMic(){if(stream)stream.getTracks().forEach(t=>t.stop());const c=$('clean').checked;
+ stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('mic').value?{exact:$('mic').value}:undefined,echoCancellation:c,noiseSuppression:c,autoGainControl:c,channelCount:1}});
+ mics();const ac=new AudioContext(),src=ac.createMediaStreamSource(stream);an=ac.createAnalyser();an.fftSize=1024;src.connect(an)}
+function meter(){if(an){const a=new Float32Array(an.fftSize);an.getFloatTimeDomainData(a);let m=0;for(const x of a)m=Math.max(m,Math.abs(x));
+ const i=$('meter').firstChild;i.style.width=Math.min(100,m*110)+'%';i.style.background=m>.95?'#e33':m>.6?'#cc4':'#4c4'}requestAnimationFrame(meter)}meter();
+$('mic').onchange=$('clean').onchange=()=>{if(stream)openMic()};
+async function startRec(){if(rec&&rec.state==='recording')return;stopPlay();
+ try{await openMic()}catch(e){alert('Microphone blocked: '+e.message);return}
+ go(0,false);
+ if($('count').checked){const cd=$('cd');cd.style.display='flex';for(const n of[3,2,1]){cd.textContent=n;await new Promise(r=>setTimeout(r,700))}cd.style.display='none'}
+ const mt=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+ rec=new MediaRecorder(stream,{mimeType:mt,audioBitsPerSecond:160000});chunks=[];cues=[{t:0,line:0}];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});addTake(blob,now(),cues.slice())};
+ t0=performance.now();rec.start(1000);$('rec').classList.add('on');$('rec').disabled=true;$('stop').disabled=false;
+ tick=setInterval(()=>$('clock').textContent=fmt(now()),100)}
+function stopRec(){if(!rec||rec.state!=='recording')return;rec.stop();clearInterval(tick);$('rec').classList.remove('on');$('rec').disabled=false;$('stop').disabled=true}
+$('rec').onclick=startRec;$('stop').onclick=stopRec;
+addEventListener('keydown',e=>{if(e.target.tagName=='TEXTAREA'||e.target.tagName=='INPUT')return;
+ if($('vbig').style.display=='flex'&&e.key=='Escape'){$('vbig').style.display='none';return}
+ if(e.key==' '||e.key=='ArrowRight'||e.key=='ArrowDown'){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'||e.key=='ArrowUp'){e.preventDefault();go(cur-1)}
+ else if(e.key=='r'||e.key=='R')startRec();else if(e.key=='s'||e.key=='S'||e.key=='Escape')stopRec()});
+// takes, kept in IndexedDB
+let db;const idb=new Promise(r=>{const q=indexedDB.open('spinor2-voice',1);q.onupgradeneeded=()=>q.result.createObjectStore('takes',{keyPath:'id'});q.onsuccess=()=>r(db=q.result)});
+const store=m=>db.transaction('takes',m).objectStore('takes');
+async function addTake(blob,dur,cues){await idb;const d=new Date(),p=n=>String(n).padStart(2,'0');
+ const id=`spinor2-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+ const t={id,blob,dur,cues,script:LINES,when:d.toString(),note:'',up:false};store('readwrite').put(t).onsuccess=showTakes}
+async function showTakes(){await idb;const all=[];store('readonly').openCursor().onsuccess=e=>{const c=e.target.result;if(c){all.push(c.value);c.continue();return}
+ all.reverse();if(!all.length)return;$('takes').innerHTML='';
+ for(const t of all){const div=document.createElement('div');div.className='take';const url=URL.createObjectURL(t.blob);
+  div.innerHTML=`<b>${t.id.slice(8)}</b> <span class="small">${fmt(t.dur)} · ${(t.blob.size/1e6).toFixed(2)} MB · ${t.cues.length} cues</span>
+   <audio controls src="${url}"></audio>
+   <input placeholder="note for Crystal (optional)" value="${esc(t.note||'')}"> <button class="up">⬆ Upload</button> <button class="del">✕</button>
+   <span class="st small">${t.up?'<span class=ok>uploaded ✓</span>':''}</span>`;
+  const au=div.querySelector('audio');au.onplay=()=>{stopPlay();playing={au,t};div.classList.add('sel');follow()};
+  au.onpause=au.onended=()=>div.classList.remove('sel');
+  div.querySelector('input').onchange=e=>{t.note=e.target.value;store('readwrite').put(t)};
+  div.querySelector('.del').onclick=()=>{if(confirm('Delete this take from the browser?'))store('readwrite').delete(t.id).onsuccess=()=>{div.remove()}};
+  div.querySelector('.up').onclick=()=>upload(t,div);$('takes').appendChild(div)}}}
+function stopPlay(){if(playing){playing.au.pause();playing=null}}
+function follow(){if(!playing||playing.au.paused)return;const s=playing.au.currentTime;let l=0;
+ for(const c of playing.t.cues)if(c.t<=s)l=c.line;if(l!==cur)go(l,false);requestAnimationFrame(follow)}
+async function upload(t,div){const st=div.querySelector('.st');st.textContent='uploading…';t.note=div.querySelector('input').value;
+ const ext=t.blob.type.includes('mp4')?'m4a':'webm';
+ try{let r=await fetch(`${API}/upload?k=${K}&id=${t.id}&ext=${ext}`,{method:'POST',body:t.blob});if(!r.ok)throw Error('upload '+r.status);
+  r=await fetch(`${API}/meta?k=${K}&id=${t.id}`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({id:t.id,when:t.when,duration:t.dur,mime:t.blob.type,note:t.note,cues:t.cues.map(c=>({...c,text:(t.script[c.line]||{}).text})),script:t.script})});
+  if(!r.ok)throw Error('meta '+r.status);t.up=true;store('readwrite').put(t);st.innerHTML='<span class=ok>uploaded ✓</span>';listServer()}
+ catch(e){st.innerHTML=`<span class=bad>failed (${esc(e.message)}): the take is still here, try again</span>`}}
+async function listServer(){try{let j=await (await fetch(`${API}/list?k=${K}`)).json();
+ j=j.filter(x=>x.id.startsWith('spinor2-'));$('server').innerHTML=j.length?j.map(x=>`${esc(x.id)} · ${(x.bytes/1e6).toFixed(2)} MB${x.meta?` · ${fmt(x.meta.duration)}${x.meta.note?' · “'+esc(x.meta.note)+'”':''}`:''}`).join('<br>'):'nothing uploaded yet'}
+ catch(e){$('server').innerHTML='<span class=bad>server unreachable</span> (takes stay safe in this browser)'}}
+loadScript();showTakes();listServer();mics();addEventListener('resize',()=>go(cur,false));
+</script></body></html>

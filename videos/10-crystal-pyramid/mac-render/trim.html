@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>crystal cut: pick in/out times</title>
+<style>
+html,body{margin:0;background:#0b0e16;color:#dfe6f2;font:15px/1.4 system-ui,sans-serif}
+#app{max-width:980px;margin:0 auto;padding:10px 14px}
+h1{font-size:18px;margin:4px 0 10px;font-weight:600}
+#tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+#tabs button{flex:1 1 0;padding:8px 6px;border-radius:8px;border:1px solid #33405a;background:#141a28;color:#cfd8e8;font:inherit;cursor:pointer}
+#tabs button.on{background:#2a3a5c;border-color:#6a8cc8;color:#fff}
+#tabs small{display:block;color:#8fa0bc;font-size:12px}
+video{width:100%;max-height:52vh;background:#000;border-radius:8px;display:block}
+#scrub{position:relative;height:34px;margin:8px 0 4px;cursor:pointer;user-select:none;touch-action:none}
+#bar{position:absolute;left:0;right:0;top:13px;height:8px;background:#26304a;border-radius:4px}
+#sel{position:absolute;top:13px;height:8px;background:#e8b04a;border-radius:4px;opacity:.85}
+#head{position:absolute;top:4px;width:3px;height:26px;margin-left:-1px;background:#fff;border-radius:2px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.row button{padding:7px 10px;border-radius:7px;border:1px solid #33405a;background:#18203a;color:#dfe6f2;font:inherit;cursor:pointer}
+.row button.big{background:#3a2f12;border-color:#a8822e;color:#ffd98a;font-weight:600}
+.row button.go{background:#173a26;border-color:#3f9a64;color:#a8f0c4;font-weight:600}
+#now{font-family:ui-monospace,monospace;font-size:16px;min-width:90px}
+#info{font-family:ui-monospace,monospace;color:#cfd8e8}
+#keys{color:#7d8aa3;font-size:12.5px;margin-top:10px}
+#saved{color:#a8f0c4;margin-left:6px}
+</style></head><body><div id="app">
+<h1>Pick the in / out points for each clip</h1>
+<div id="tabs"></div>
+<video id="v" playsinline preload="auto"></video>
+<div id="scrub"><div id="bar"></div><div id="sel"></div><div id="head"></div></div>
+<div class="row">
+  <span id="now">0.00</span>
+  <button data-step="-1">−1 s</button><button data-step="-0.0333">−1 frame</button>
+  <button id="play">▶ play</button>
+  <button data-step="0.0333">+1 frame</button><button data-step="1">+1 s</button>
+</div>
+<div class="row">
+  <button class="big" id="setIn">set IN here</button><button class="big" id="setOut">set OUT here</button>
+  <button id="preview">▶ play IN → OUT</button>
+  <span id="info"></span>
+</div>
+<div class="row">
+  <button class="go" id="save">Save all 3 (downloads crystal-cuts.json)</button><span id="saved"></span>
+</div>
+<div id="keys">Keys: space play/pause · ← → one frame · shift+← → one second · I / O set in / out · P play in→out · 1 2 3 switch clip.
+Times are in the original files' seconds. Your picks are kept in this browser even if you close the page.</div>
+</div>
+<script>
+// Clips: the proxy file + the offset from proxy time to original-file time (the Labyrinth proxy starts at 170 s of the fan upload).
+const CLIPS = [
+  {key: 'lab',  name: 'Labyrinth', hint: 'the pyramid close-up', src: 'trim/lab.mp4',  off: 170, inT: 189.4, outT: 195.3},
+  {key: 'fail', name: 'You: the pretend fail', hint: 'balls not turning', src: 'trim/greg.mp4', off: 0, inT: 1.0, outT: 6.0},
+  {key: 'rot',  name: 'You: the real rotation', hint: 'balls turning', src: 'trim/greg.mp4', off: 0, inT: 10.0, outT: 17.0},
+];
+const STORE = 'crystal-cuts-v1';
+try { const s = JSON.parse(localStorage.getItem(STORE) || '{}');
+  for (const c of CLIPS) if (s[c.key]) { c.inT = s[c.key].in; c.outT = s[c.key].out; } } catch (e) {}
+const v = document.getElementById('v'), $ = id => document.getElementById(id);
+let cur = 0, stopAt = null;
+const fmt = x => x.toFixed(2);
+const clip = () => CLIPS[cur];
+const tOrig = () => v.currentTime + clip().off;          // original-file time of the playhead
+function seekOrig(t){ const c = clip(); v.currentTime = Math.max(0, Math.min(v.duration || 1e9, t - c.off)); }
+function persist(){ const s = {}; for (const c of CLIPS) s[c.key] = {in: +fmt(c.inT), out: +fmt(c.outT)}; localStorage.setItem(STORE, JSON.stringify(s)); }
+
+function tabs(){
+  $('tabs').innerHTML = '';
+  CLIPS.forEach((c, i) => { const b = document.createElement('button'); b.className = i == cur ? 'on' : '';
+    b.innerHTML = `${i+1}. ${c.name}<small>${fmt(c.inT)} → ${fmt(c.outT)}  (${fmt(c.outT - c.inT)} s)</small>`;
+    b.onclick = () => select(i); $('tabs').append(b); });
+}
+function select(i){
+  cur = i; stopAt = null; const c = clip();
+  const keep = v.getAttribute('src') == c.src;
+  if (!keep) v.src = c.src;
+  const go = () => { seekOrig(c.inT); draw(); };
+  if (keep && v.readyState >= 1) go(); else v.addEventListener('loadedmetadata', go, {once: true});
+  tabs(); draw();
+}
+function draw(){
+  const c = clip(), d = v.duration || 1, a = c.off, b = c.off + d;
+  const X = t => (100 * (t - a) / (b - a)) + '%';
+  $('sel').style.left = X(c.inT); $('sel').style.width = (100 * (c.outT - c.inT) / (b - a)) + '%';
+  $('head').style.left = X(tOrig());
+  $('now').textContent = fmt(tOrig()) + ' s';
+  $('info').textContent = `IN ${fmt(c.inT)}   OUT ${fmt(c.outT)}   = ${fmt(c.outT - c.inT)} s`;
+  $('play').textContent = v.paused ? '▶ play' : '❚❚ pause';
+}
+function step(s){ v.pause(); stopAt = null; seekOrig(tOrig() + s); }
+function setIn(){ const c = clip(); c.inT = tOrig(); if (c.outT <= c.inT) c.outT = Math.min(c.inT + 3, c.off + v.duration); persist(); tabs(); draw(); }
+function setOut(){ const c = clip(); c.outT = tOrig(); if (c.inT >= c.outT) c.inT = Math.max(c.outT - 3, c.off); persist(); tabs(); draw(); }
+function preview(){ const c = clip(); seekOrig(c.inT); stopAt = c.outT; v.play(); }
+function playPause(){ stopAt = null; v.paused ? v.play() : v.pause(); }
+
+document.querySelectorAll('[data-step]').forEach(b => b.onclick = () => step(+b.dataset.step));
+$('play').onclick = playPause; $('setIn').onclick = setIn; $('setOut').onclick = setOut; $('preview').onclick = preview;
+$('save').onclick = () => {
+  persist();
+  const s = {}; for (const c of CLIPS) s[c.key] = {in: +fmt(c.inT), out: +fmt(c.outT)};
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(s, null, 1)], {type: 'application/json'}));
+  a.download = 'crystal-cuts.json'; a.click();
+  $('saved').textContent = 'saved: ' + CLIPS.map(c => `${c.name.split(':')[0]} ${fmt(c.inT)}–${fmt(c.outT)}`).join(' · ');
+};
+const scrub = $('scrub');
+function scrubTo(e){ const r = scrub.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  v.pause(); stopAt = null; v.currentTime = f * (v.duration || 0); }
+scrub.addEventListener('pointerdown', e => { scrub.setPointerCapture(e.pointerId); scrubTo(e);
+  const mv = ev => scrubTo(ev), up = () => { scrub.removeEventListener('pointermove', mv); scrub.removeEventListener('pointerup', up); };
+  scrub.addEventListener('pointermove', mv); scrub.addEventListener('pointerup', up); });
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey) return;
+  const k = e.key.toLowerCase();
+  if (k == ' '){ e.preventDefault(); playPause(); }
+  else if (k == 'arrowleft'){ e.preventDefault(); step(e.shiftKey ? -1 : -1/30); }
+  else if (k == 'arrowright'){ e.preventDefault(); step(e.shiftKey ? 1 : 1/30); }
+  else if (k == 'i') setIn(); else if (k == 'o') setOut(); else if (k == 'p') preview();
+  else if (k >= '1' && k <= '3') select(+k - 1);
+});
+v.addEventListener('timeupdate', () => { if (stopAt != null && tOrig() >= stopAt){ v.pause(); stopAt = null; } draw(); });
+v.addEventListener('seeked', draw); v.addEventListener('play', draw); v.addEventListener('pause', draw);
+(function tick(){ if (!v.paused){ if (stopAt != null && tOrig() >= stopAt){ v.pause(); stopAt = null; } draw(); } requestAnimationFrame(tick); })();
+select(0);
+</script></body></html>

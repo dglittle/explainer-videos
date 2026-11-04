@@ -1,0 +1,51 @@
+(handoff from the matmul-video flight, which made Greg's latest voiced video: "a nicer way to multiply matrices by hand, v0.1",
+https://youtu.be/M6-sdPYdZyY. Before that: epr-video, "why is the EPR paradox weird?, v0.1", https://youtu.be/toD7BWe4QeU)
+
+Make a voiced video, v0.1, from Greg's screenplay idea below (verbatim in greg-prompt.txt). Folder: ~/airport-sessions/qc-video.
+
+READ FIRST: ~/airport-sessions/matmul-video/README.md (the newest pipeline, incl. the "Draft 2" and PUBLISHED notes), then
+~/airport-sessions/epr-video/README.md (the full process: booth, takes, Mac render, publish). Reuse matmul-video's code by COPYING it
+(anim.html, build-booth.js, studio2.orig.html, render.js, tools/ incl. tools/tile.py), don't edit it in place. node_modules: symlink
+../poker-video/node_modules. New take prefix (e.g. qc1-): change EVERY 'mm1-' string in build-booth.js (localStorage keys, IndexedDB
+name, take id, server list filter), plus DIR (stage directions), the title/h1 and the anim link. Edit build-booth.js with small exact
+replacements. NOTE: `node build-booth.js > booth.html` (it writes to stdout).
+Engine notes: the engine draws to `g`, not `ctx` (watch for locals that shadow g). SCRIPT = [key phrase, text, wordless hold s];
+every key phrase must be unique and not contained in any other line's text. Keep the bottom-right corner (x 1650–1920, y 815–1080)
+free in every scene: that's where Greg's webcam circle goes while he speaks.
+
+The math: check it, and tell Greg gently what's right/what to tweak. Don't put words in his mouth: offer optional lines or on-screen
+notes, and let him choose. My notes (verify them yourself):
+- Mostly right. The "funny" classical step is a 2^n-long one-hot vector times a 0/1 matrix with exactly one 1 per column.
+  The machine's state should also include the head position and the control state, not just the tape (or fold them into the tape).
+- Complex numbers: yes, |z|² = z·z̄ (z times its complex conjugate), and the length is sqrt(Σ|a_i|²). He's right.
+- "Matrix keeps the length 1 for every input" = the matrix is UNITARY (U†U = I). The subtle bit: unitary ⇒ invertible, so the
+  classical update must be REVERSIBLE: a permutation matrix. A normal TM step can erase information (two states → one), which isn't
+  allowed. Fix: Bennett (1973) / Toffoli showed any computation can be made reversible with some extra scratch tape. So the classical
+  steps that "survive" are exactly the permutation matrices, and quantum = all unitaries. Probably worth one optional line or an on-screen note.
+- Missing piece: measurement. At the end you look, and you see state i with probability |a_i|² (the Born rule). That's WHY the
+  length must be 1. Offer it as an optional line.
+- Optional: the giant matrix is in practice a product of small local gates (each touches a few cells), like the TM head being local.
+- Related ideas Greg might like (an optional credit, like the Falk's scheme credit in matmul): Scott Aaronson, "quantum mechanics is
+  probability theory with the 2-norm and complex numbers" (Quantum Computing Since Democritus, lecture 9): the classical
+  PROBABILISTIC version is a vector of non-negative numbers that sum to 1 (1-norm) and stochastic matrices; quantum swaps that for the 2-norm and
+  complex numbers. Formal quantum Turing machines: Deutsch 1985, Bernstein–Vazirani 1993.
+
+Visual style lessons from matmul:
+- Greg liked a busy "cartoon in a smart person's mind" swarm of little examples under the intro, a CLEAN screen during the real
+  explanation, and glossing over parts the audience already knows. Make it beautiful rather than long.
+- No hand/finger shapes (they read as something we want to avoid); use abstract pointers (glowing arrowheads etc.).
+- Have the page COMPUTE every number it shows and check it headlessly (e.g. vector norms stay 1 after each matrix, the classical
+  matrix is a permutation, etc.). Idea: a tiny tape (2–3 cells → 4–8 states), show the one-hot vector, the matrix with one 1 per
+  column, the 1 hopping; then the amplitudes spreading out (bars, or arrows in the complex plane), the length staying 1.
+- Look at a frame per line and mid-line (tools/shots.js end|mid|times), tile them (tools/tile.py), and fix overlaps.
+- Greg reads faster than the guess (pace ~0.7): a short spoken line followed by on-screen text needs a long wordless hold (~3–4 s).
+
+Process: write SCRIPT in Greg's words (light cleanup only). Publish anim + booth with kbt (see the READMEs; `kbt read <f> --json` →
+.version[0] for updates; then kbt flush; then personal-reports-push.sh). Then STOP and give Greg the booth link (mention the camera
+box and "Reset to the … script"). Greg may want to iterate on the animation alone first (skip the booth). Takes land in
+~/greg-voice/takes/<prefix>-*. Render on the MAC (mac:~/airport-sessions/<name>-render, copy matmul-render's run.sh); --dry first.
+Don't upload until Greg says "publish"/"ship it". Then S3 + YouTube exactly as in matmul-video's README (title ", v0.1";
+description like matmul-video/desc-matmul-v01.txt). Log the video id in your README.
+
+Greg's request, verbatim:
+"I'd like to give my understanding of quantum computation, for someone who knows about regular computation. So, with regular computation, we can do it all with a Turing machine, which has a long tape of 0's and 1's. To simply things, let's assume the tape is finite. Then we could do a step of computation in a rather funny way.. we could list all the states the tape could possibly be in.. which is a lot, 2 to the power of however many cells.. and we can imagine a vector that long, with 0's everywhere, except a single one at the position representing the current state of the Turing machine tape. And then to apply the next state update, we multiple this vector by a giant square matrix, such that the resulting vector has a single one at the position representing the new state of the tape after the update. Now to make this quantum computation, all we need to do is, instead of having 0's everywhere with a single 1, we instead relax the requiement to say that the length of the vector must be 1 (which is the same as saying that the sum of the squares of all the elements must be 1). Of course, actually the numbers can be complex too, and rather than squaring them, we want to get the magnitude by taking the complex conjugate (if that's correct). And we also require the matrix to be such that the result will also have a magnitude of 1. And this vector times matrix setup is sort of the Turing machine of quantum computation. Any quantum computation boils down to this." ? thanks!!

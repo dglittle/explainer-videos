@@ -1,0 +1,2 @@
+const puppeteer=require('puppeteer-core');(async()=>{const b=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});const p=await b.newPage();await p.goto('file:///home/bitnami/airport-sessions/qc-video/anim.html');
+console.log((await p.evaluate(()=>{const r=[];TL.filter(e=>e.k=='step').forEach(e=>r.push(e.t+0.4,e.t+FD+0.35,e.t+FD+0.7));return r})).map(x=>x.toFixed(2)).join(' '));await b.close()})();

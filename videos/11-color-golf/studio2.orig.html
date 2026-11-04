@@ -1,0 +1,167 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>yellow is red-green · voice-over booth v2</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0d0d0d;color:#ddd;font:15px/1.4 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #222;flex-wrap:wrap}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+h1 b{background:linear-gradient(90deg,#f00,#808000,#0f0);-webkit-background-clip:text;color:transparent}
+button{background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c2c}button:disabled{opacity:.4;cursor:default}
+button.rec{background:#7a1010;border-color:#c33}button.rec.on{background:#e22;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#meter{width:110px;height:8px;background:#222;border-radius:4px;overflow:hidden}#meter i{display:block;height:100%;width:0;background:#4c4}
+#clock{font:600 16px ui-monospace,monospace;min-width:60px}
+.small{font-size:12px;color:#888}
+#stage{position:relative;height:62vh;overflow:hidden;border-bottom:1px solid #222}
+#lines{position:absolute;left:0;right:0;transition:transform .35s ease}
+.ln{padding:14px 8vw;font-size:30px;line-height:1.3;color:#555;cursor:pointer;transition:color .25s,font-size .25s}
+.ln .dir{display:block;font-size:14px;color:#6a6a3a;font-style:italic;margin-bottom:2px}
+.ln.cur{color:#fff;font-size:40px}.ln.cur .dir{color:#cc4}
+.ln.done{color:#3a3a3a}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:140px;font-weight:700;background:#000a;color:#fff}
+#hint{position:absolute;bottom:8px;right:14px;font-size:12px;color:#666}
+main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:14px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{font-size:14px;margin:0 0 8px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.take{border:1px solid #2a2a2a;border-radius:8px;padding:9px 11px;margin-bottom:9px;background:#141414}
+.take.sel{border-color:#886}
+.take audio{width:100%;height:34px;margin:6px 0}
+.take input{background:#111;color:#ddd;border:1px solid #333;border-radius:5px;padding:5px 7px;width:60%}
+.ok{color:#5c5}.bad{color:#e66}
+textarea{width:100%;height:300px;background:#111;color:#ccc;border:1px solid #333;border-radius:6px;font:13px/1.45 ui-monospace,monospace;padding:8px;box-sizing:border-box}
+select{background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px}
+</style></head><body>
+<header>
+ <h1>yellow is <b>red-green</b> · voice-over booth <span class=small>v2 · Pikachu ending</span></h1>
+ <button id="rec" class="rec">● Record</button>
+ <button id="stop" disabled>■ Stop</button>
+ <span id="clock">0:00.0</span>
+ <div id="meter"><i></i></div>
+ <select id="mic" title="microphone"></select>
+ <label class="small"><input type="checkbox" id="clean"> mic cleanup (noise/echo/gain)</label>
+ <label class="small"><input type="checkbox" id="count" checked> 3-2-1</label>
+</header>
+<div id="stage"><div id="lines"></div><div id="cd"></div>
+ <div id="hint">Space / → / click = next line · ← = back · R = record · S / Esc = stop</div></div>
+<main>
+ <section>
+  <h2>Takes <span class="small">(kept in this browser until you delete them)</span></h2>
+  <div id="takes"><div class="small">No takes yet. Press ● Record (or R), read each line, tap Space when you move to the next one.</div></div>
+  <h2 style="margin-top:18px">On the server <span class="small">(what Crystal can get)</span></h2>
+  <div id="server" class="small">…</div>
+ </section>
+ <section>
+  <h2>Script <span class="small">one spoken line per row · rows in (parentheses) are stage directions for the next line</span></h2>
+  <textarea id="script" spellcheck="false"></textarea>
+  <div style="margin-top:6px"><button id="apply">Use this script</button> <button id="reset">Reset to Greg's Oct-12 v2 script</button> <span id="sst" class="small"></span></div>
+ </section>
+</main>
+<script>
+const API='https://test.bloop.monster:61920', K='<VOICE_KEY>';
+const DEFAULT=`(upside-down triangle: red, green, blue; yellow bloops in on top, between red and green)
+I used to think of yellow as a sibling of red, green and blue,
+until computer screens convinced me that it was really a combination of red and green.
+(zoom in on the yellow dot)
+If we zoom in, we find that the yellow is literally a bunch of tiny red and green lights.
+(zoom out again · then a magenta dot bloops in, dots shift to make space)
+So why doesn't it look like red-green, the way magenta looks like red-blue?
+(a cyan dot bloops in · dots settle into a perfect hexagon)
+And the way cyan looks like blue-green?
+Now a little visual magic trick.
+I've found red-green, and I'm going to show it to you.
+(gradient red → green, pure 255,255,0 yellow in the middle)
+We'll start with this gradient from red to green.
+It looks like it becomes yellow, and then yellow becomes green.
+(it splits into a red gradient above and a green one below, which add up to the middle one)
+But really this is two gradients.
+(the bottom bar's left half lights up: green ramps up to max · then the top bar's right half: red ramps down to zero)
+On the bottom we turn up green to max, and then on the top, we turn down red to zero.
+(the middle of both bars is marked: 255 red + 255 green)
+But this means the color in the middle is, in some sense, twice as bright as either red or green alone.
+(the two gradients smooth out)
+Let's instead make those gradients smooth,
+(they slide back together)
+and then put them together again.
+(the middle reads rgb(128, 128, 0))
+Now the yellow in the middle is dimmer..
+and less pretty..
+(pause ~1 s: the marker turns into a shocked Pikachu face, mouth wide open · after this line, wait ~1 s for the squint, then Stop)
+but it looks like red-green.`;
+const $=id=>document.getElementById(id);
+let LINES=[], cur=0, rec=null, chunks=[], t0=0, cues=[], stream=null, an=null, playing=null, tick=null;
+function parse(txt){const out=[];let dir=[];for(let r of txt.split('\n')){r=r.trim();if(!r)continue;
+ if(/^\(.*\)$/.test(r)){dir.push(r.slice(1,-1));continue}out.push({text:r,dir:dir.join(' · ')});dir=[]}return out}
+function render(){$('lines').innerHTML=LINES.map((l,i)=>`<div class="ln" data-i="${i}">${l.dir?`<span class="dir">${esc(l.dir)}</span>`:''}${esc(l.text)}</div>`).join('');
+ [...document.querySelectorAll('.ln')].forEach(e=>e.onclick=()=>go(+e.dataset.i));go(0)}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+function go(i,log=true){cur=Math.max(0,Math.min(LINES.length-1,i));
+ document.querySelectorAll('.ln').forEach((e,j)=>{e.classList.toggle('cur',j==cur);e.classList.toggle('done',j<cur)});
+ const e=document.querySelector(`.ln[data-i="${cur}"]`);if(!e)return;
+ const H=$('stage').clientHeight;$('lines').style.transform=`translateY(${H*0.38-e.offsetTop}px)`;
+ if(log&&rec&&rec.state==='recording')cues.push({t:+(now()).toFixed(2),line:cur})}
+const now=()=>(performance.now()-t0)/1000;
+const fmt=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+function loadScript(){const s=localStorage.getItem('yv2-script');$('script').value=s||DEFAULT;LINES=parse($('script').value);render()}
+$('apply').onclick=()=>{localStorage.setItem('yv2-script',$('script').value);LINES=parse($('script').value);render();$('sst').textContent='using '+LINES.length+' lines'};
+$('reset').onclick=()=>{localStorage.removeItem('yv2-script');loadScript();$('sst').textContent='reset'};
+// mic
+async function mics(){try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind=='audioinput');
+ const v=$('mic').value;$('mic').innerHTML=d.map(x=>`<option value="${x.deviceId}">${esc(x.label||'microphone')}</option>`).join('');if(v)$('mic').value=v}catch(e){}}
+async function openMic(){if(stream)stream.getTracks().forEach(t=>t.stop());const c=$('clean').checked;
+ stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('mic').value?{exact:$('mic').value}:undefined,echoCancellation:c,noiseSuppression:c,autoGainControl:c,channelCount:1}});
+ mics();const ac=new AudioContext(),src=ac.createMediaStreamSource(stream);an=ac.createAnalyser();an.fftSize=1024;src.connect(an)}
+function meter(){if(an){const a=new Float32Array(an.fftSize);an.getFloatTimeDomainData(a);let m=0;for(const x of a)m=Math.max(m,Math.abs(x));
+ const i=$('meter').firstChild;i.style.width=Math.min(100,m*110)+'%';i.style.background=m>.95?'#e33':m>.6?'#cc4':'#4c4'}requestAnimationFrame(meter)}meter();
+$('mic').onchange=$('clean').onchange=()=>{if(stream)openMic()};
+async function startRec(){if(rec&&rec.state==='recording')return;stopPlay();
+ try{await openMic()}catch(e){alert('Microphone blocked: '+e.message);return}
+ go(0,false);
+ if($('count').checked){const cd=$('cd');cd.style.display='flex';for(const n of[3,2,1]){cd.textContent=n;await new Promise(r=>setTimeout(r,700))}cd.style.display='none'}
+ const mt=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+ rec=new MediaRecorder(stream,{mimeType:mt,audioBitsPerSecond:160000});chunks=[];cues=[{t:0,line:0}];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});addTake(blob,now(),cues.slice())};
+ t0=performance.now();rec.start(1000);$('rec').classList.add('on');$('rec').disabled=true;$('stop').disabled=false;
+ tick=setInterval(()=>$('clock').textContent=fmt(now()),100)}
+function stopRec(){if(!rec||rec.state!=='recording')return;rec.stop();clearInterval(tick);$('rec').classList.remove('on');$('rec').disabled=false;$('stop').disabled=true}
+$('rec').onclick=startRec;$('stop').onclick=stopRec;
+addEventListener('keydown',e=>{if(e.target.tagName=='TEXTAREA'||e.target.tagName=='INPUT')return;
+ if(e.key==' '||e.key=='ArrowRight'||e.key=='ArrowDown'){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'||e.key=='ArrowUp'){e.preventDefault();go(cur-1)}
+ else if(e.key=='r'||e.key=='R')startRec();else if(e.key=='s'||e.key=='S'||e.key=='Escape')stopRec()});
+// takes, kept in IndexedDB
+let db;const idb=new Promise(r=>{const q=indexedDB.open('yellow-voice-2',1);q.onupgradeneeded=()=>q.result.createObjectStore('takes',{keyPath:'id'});q.onsuccess=()=>r(db=q.result)});
+const store=m=>db.transaction('takes',m).objectStore('takes');
+async function addTake(blob,dur,cues){await idb;const d=new Date(),p=n=>String(n).padStart(2,'0');
+ const id=`yellow2-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+ const t={id,blob,dur,cues,script:LINES,when:d.toString(),note:'',up:false};store('readwrite').put(t).onsuccess=showTakes}
+async function showTakes(){await idb;const all=[];store('readonly').openCursor().onsuccess=e=>{const c=e.target.result;if(c){all.push(c.value);c.continue();return}
+ all.reverse();if(!all.length)return;$('takes').innerHTML='';
+ for(const t of all){const div=document.createElement('div');div.className='take';const url=URL.createObjectURL(t.blob);
+  div.innerHTML=`<b>${t.id.slice(7)}</b> <span class="small">${fmt(t.dur)} · ${(t.blob.size/1e6).toFixed(2)} MB · ${t.cues.length} cues</span>
+   <audio controls src="${url}"></audio>
+   <input placeholder="note for Crystal (optional)" value="${esc(t.note||'')}"> <button class="up">⬆ Upload</button> <button class="del">✕</button>
+   <span class="st small">${t.up?'<span class=ok>uploaded ✓</span>':''}</span>`;
+  const au=div.querySelector('audio');au.onplay=()=>{stopPlay();playing={au,t};div.classList.add('sel');follow()};
+  au.onpause=au.onended=()=>div.classList.remove('sel');
+  div.querySelector('input').onchange=e=>{t.note=e.target.value;store('readwrite').put(t)};
+  div.querySelector('.del').onclick=()=>{if(confirm('Delete this take from the browser?'))store('readwrite').delete(t.id).onsuccess=()=>{div.remove()}};
+  div.querySelector('.up').onclick=()=>upload(t,div);$('takes').appendChild(div)}}}
+function stopPlay(){if(playing){playing.au.pause();playing=null}}
+function follow(){if(!playing||playing.au.paused)return;const s=playing.au.currentTime;let l=0;
+ for(const c of playing.t.cues)if(c.t<=s)l=c.line;if(l!==cur)go(l,false);requestAnimationFrame(follow)}
+async function upload(t,div){const st=div.querySelector('.st');st.textContent='uploading…';t.note=div.querySelector('input').value;
+ const ext=t.blob.type.includes('mp4')?'m4a':'webm';
+ try{let r=await fetch(`${API}/upload?k=${K}&id=${t.id}&ext=${ext}`,{method:'POST',body:t.blob});if(!r.ok)throw Error('upload '+r.status);
+  r=await fetch(`${API}/meta?k=${K}&id=${t.id}`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({id:t.id,when:t.when,duration:t.dur,mime:t.blob.type,note:t.note,cues:t.cues.map(c=>({...c,text:(t.script[c.line]||{}).text})),script:t.script})});
+  if(!r.ok)throw Error('meta '+r.status);t.up=true;store('readwrite').put(t);st.innerHTML='<span class=ok>uploaded ✓</span>';listServer()}
+ catch(e){st.innerHTML=`<span class=bad>failed (${esc(e.message)}): the take is still here, try again</span>`}}
+async function listServer(){try{const j=await (await fetch(`${API}/list?k=${K}`)).json();
+ $('server').innerHTML=j.length?j.map(x=>`${esc(x.id)} · ${(x.bytes/1e6).toFixed(2)} MB${x.meta?` · ${fmt(x.meta.duration)}${x.meta.note?' · “'+esc(x.meta.note)+'”':''}`:''}`).join('<br>'):'nothing uploaded yet'}
+ catch(e){$('server').innerHTML='<span class=bad>server unreachable</span> (takes stay safe in this browser)'}}
+loadScript();showTakes();listServer();mics();addEventListener('resize',()=>go(cur,false));
+</script></body></html>

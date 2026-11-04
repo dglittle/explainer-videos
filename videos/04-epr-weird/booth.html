@@ -1,0 +1,623 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EPR paradox · voice-over booth</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0d0d0d;color:#ddd;font:15px/1.4 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #222;flex-wrap:wrap}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+h1 b{color:#ffd166}
+button{background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c2c}button:disabled{opacity:.4;cursor:default}
+button.rec{background:#7a1010;border-color:#c33}button.rec.on{background:#e22;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#meter{width:110px;height:8px;background:#222;border-radius:4px;overflow:hidden}#meter i{display:block;height:100%;width:0;background:#4c4}
+#clock{font:600 16px ui-monospace,monospace;min-width:60px}
+.small{font-size:12px;color:#888}
+#stage{position:relative;height:62vh;overflow:hidden;border-bottom:1px solid #222}
+#lines{position:absolute;left:0;right:0;transition:transform .35s ease}
+.ln{padding:14px 8vw;font-size:30px;line-height:1.3;color:#555;cursor:pointer;transition:color .25s,font-size .25s}
+.ln .dir{display:block;font-size:14px;color:#6a6a3a;font-style:italic;margin-bottom:2px}
+.ln.cur{color:#fff;font-size:40px}.ln.cur .dir{color:#cc4}
+.ln.done{color:#3a3a3a}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:140px;font-weight:700;background:#000a;color:#fff}
+#hint{position:absolute;bottom:8px;right:14px;font-size:12px;color:#666}
+main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:14px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{font-size:14px;margin:0 0 8px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.take{border:1px solid #2a2a2a;border-radius:8px;padding:9px 11px;margin-bottom:9px;background:#141414}
+.take.sel{border-color:#886}
+.take audio{width:100%;height:34px;margin:6px 0}
+.take input{background:#111;color:#ddd;border:1px solid #333;border-radius:5px;padding:5px 7px;width:60%}
+.ok{color:#5c5}.bad{color:#e66}
+textarea{width:100%;height:300px;background:#111;color:#ccc;border:1px solid #333;border-radius:6px;font:13px/1.45 ui-monospace,monospace;padding:8px;box-sizing:border-box}
+select{background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px}
+.ln{display:flex;align-items:center;gap:18px}.ln .tx{flex:1}
+.vth{display:flex;gap:6px;flex:none;opacity:.35;transition:opacity .25s}
+.vth figure{margin:0;position:relative}.vth canvas{display:block;width:120px;aspect-ratio:16/9;border-radius:4px;border:1px solid #333;transition:width .25s;cursor:zoom-in}
+.vth figcaption{position:absolute;left:4px;bottom:2px;font-size:10px;color:#aaa;text-shadow:0 0 3px #000;font-style:normal}
+.ln.cur .vth{opacity:1}.ln.cur .vth canvas{width:220px}
+body.nof .vth{display:none}
+#vbig{position:fixed;inset:0;background:#000d;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+#vbig canvas{width:min(92vw,160vh);aspect-ratio:16/9;border:1px solid #444}#vbig span{margin-top:8px;color:#aaa;font-size:13px}
+#camv{position:fixed;right:18px;top:100px;width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid #ffd166;display:none;z-index:5;background:#000}
+body.camon #camv{display:block}.take video{width:160px;vertical-align:middle;border-radius:6px}
+</style></head><body>
+<header>
+ <h1><b>Why is EPR weird?</b> · voice-over booth <span class=small>Oct-24 script · <a href="epr-anim.html" style="color:#888">the animation</a></span></h1>
+ <button id="rec" class="rec">● Record</button>
+ <button id="stop" disabled>■ Stop</button>
+ <span id="clock">0:00.0</span>
+ <div id="meter"><i></i></div>
+ <select id="mic" title="microphone"></select>
+ <label class="small"><input type="checkbox" id="clean"> mic cleanup (noise/echo/gain)</label>
+ <label class="small"><input type="checkbox" id="count" checked> 3-2-1</label>
+ <label class="small" title="start / middle / end of what the video shows during each line"><input type="checkbox" id="frames" checked> frames</label>
+ <label class="small" title="also record a small webcam video (shown in a corner circle while you talk)"><input type="checkbox" id="cam"> camera</label>
+</header>
+<div id="stage"><div id="lines"></div><div id="cd"></div>
+ <video id="camv" muted playsinline autoplay title="what the camera sees (mirrored here; the video is not)"></video>
+ <div id="vbig"><canvas width="1920" height="1080"></canvas><span></span></div>
+ <div id="hint" title="Record starts at the highlighted line: click a line first to start there">Space / → / click = next line · ← = back · R = record · S / Esc = stop</div></div>
+<main>
+ <section>
+  <h2>Takes <span class="small">(kept in this browser until you delete them)</span></h2>
+  <div id="takes"><div class="small">No takes yet. Press ● Record (or R), read each line, tap Space when you move to the next one.</div></div>
+  <h2 style="margin-top:18px">On the server <span class="small">(what the renderer can get)</span></h2>
+  <div id="server" class="small">…</div>
+ </section>
+ <section>
+  <h2>Script <span class="small">one spoken line per row · rows in (parentheses) are stage directions for the next line</span></h2>
+  <textarea id="script" spellcheck="false"></textarea>
+  <div style="margin-top:6px"><button id="apply">Use this script</button> <button id="reset">Reset to the Oct-24 script</button> <span id="sst" class="small"></span></div>
+ </section>
+</main>
+<script>
+const API='https://test.bloop.monster:61920', K='<VOICE_KEY>';
+const DEFAULT=`(title, then Earth and Alpha Centauri)
+Why is the EPR paradox weird?
+(an entangled pair flies apart)
+Take a pair of entangled particles, and send one of them off to Alpha Centauri.
+(Alice’s particle shows 1, then Bob’s is “known”)
+When Alice measures her particle, Bob's particle becomes known, even though Bob hasn't measured it yet.
+And they claim it for sure wasn't known before Alice measured. Oh no. Before that, it was in an unknowable state.
+(two speech bubbles)
+And they're like, "That's so mysterious, right?" And I'm like, why wasn't it known all along?
+(lie #1, #2, #3, and the truth · a beat after this line)
+Well, here's why it couldn't have been known all along. We'll explain it with three increasingly true lies.
+(two phones bump, then slide apart)
+The first lie goes like this. Alice and Bob bump a phone app that gives them each a button. Pressing it shows a zero or a one.
+(1 light-year apart, both press: 1 and 1 · the edit leaves a beat)
+And the app claims that, mysteriously, they'll see the same number, even if they press the button a light-year apart.
+(a gold “1” badge on each phone: written at the bump)
+But why couldn't the app just assign each phone the same number when they bump?
+(two buttons (red top, green bottom))
+OK, fair enough. On to the second lie. Now the app has two buttons, and pressing either one removes both buttons, and shows a zero or a one.
+(the claim table fills in, then a demo press: different ✓)
+The claim is that if they press the same button, they'll see the same number, but if they press different buttons, they'll see different numbers. Even a light-year apart!
+(badges: top = 1, bottom = 0)
+But again, why couldn't the app assign a number to each button when they bump? The same on both phones, and a different number to each button.
+(each cell of the table gets a ✓)
+Then the prediction works out no matter what they each decide to press.
+(three buttons, red / yellow / green)
+OK, fine. On to the third, and nearly final, lie. Now the app has three buttons, stacked like a traffic light.
+(the 3×3 claim table)
+And now it claims that whatever they press, they'll get the same number, unless one person presses the top button and the other presses the bottom button. Then they'll get different numbers.
+(“?” badges)
+Now it really is tricky. When the phones bump, what can the app assign?
+(top = 1, then middle = 1)
+If it assigns a one to the top button, then it needs a one on the middle button too, in case one person presses top and the other presses middle.
+(bottom = 1)
+But then it needs a one on the bottom button too, in case one presses middle and the other presses bottom.
+(top vs bottom cells turn red ✗ · NO WAY stamp)
+But that's no good. Now they're all ones. What if one presses the top, and the other presses the bottom?
+(a lightning message between the phones)
+The only way out is for the app to send some kind of instantaneous message to the other phone, the moment someone presses a button.
+(a slow dot of light: a whole year)
+But that's hard when they're a light-year apart. That's really the punch line. That's the spirit of what's weird about the EPR paradox.
+(NEW ENDING · click this line, then Record · the lie #3 table, NOT QUITE)
+Now, the truth of the quantum matter has some nits and details, and it couldn't quite create the app we described.
+(NEW · the table turns into 100% / 50% / 85.4%, with a live simulation)
+But here's an app it could absolutely create: the top and bottom buttons match fifty percent of the time, and middle-top and middle-bottom each match eighty-five percent of the time.
+(NEW · “?” badges · STILL IMPOSSIBLE TO FAKE)
+And that app is still impossible to fake by writing the numbers down at the bump.
+(NEW · a wall of the fancy math (truth table, triangle inequality, formulas, polarizers))
+You'll have to take the word of the fancy math and details you're seeing here to believe that's true. Maybe I'll make a video about that.
+(NEW · “the spirit of what’s weird”)
+But here, I just wanted to convey the spirit of what's weird.
+(NEW · The end. · hold a beat, then Stop)
+The end.`;
+const $=id=>document.getElementById(id);
+
+// ---- video frames: the drawing code below is copied verbatim from anim.html (the page the video renders from) ----
+const VID=(()=>{const cv=Object.assign(document.createElement('canvas'),{width:1920,height:1080}), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g (swapped to an offscreen canvas for the "fancy math" panels)
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// ---------- the physics (every number on screen is computed here) ----------
+// Polarization-entangled photon pair (|HH>+|VV>)/√2. Button = polarizer angle. Same result with probability cos²(angle between).
+const ANG=[0,22.5,45];                                   // top, middle, bottom button
+const PSAME=(a,b)=>Math.cos((ANG[a]-ANG[b])*Math.PI/180)**2;  // 1, 0.854, 0.5
+const P_TM=PSAME(0,1), P_MB=PSAME(1,2), P_TB=PSAME(0,2);
+// Bell (triangle) inequality for answers written down at the bump: if top≠bottom, the middle differs from one of them.
+const BITS=[...Array(8)].map((_,i)=>[i>>2&1,i>>1&1,i&1]);
+const TRI_OK=BITS.every(([t,m,b])=>(t!=b)<=(t!=m)+(m!=b));
+const PMAX=1-(1-P_TB)/2;                                  // best "middle matches" a pre-assigned app can do: 75%
+// an app that hits it exactly (weights on the 8 assignments): 1/8 each of 110,001,011,100, 1/4 each of 111,000
+const BEST=[1/4,1/8,0,1/8,1/8,0,1/8,1/4];
+const pm=(w,a,b)=>w.reduce((s,x,i)=>s+x*(BITS[i][a]==BITS[i][b]),0);
+// simulated "real" app: seeded trials
+let _s=20261024;const rnd=()=>(_s=(_s*16807)%2147483647)/2147483647;
+const NTR=9000, TR=[];for(let k=0;k<NTR;k++){const a=Math.floor(rnd()*3),b=Math.floor(rnd()*3),x=rnd()<0.5?1:0,same=rnd()<PSAME(a,b);TR.push([a,b,x,same?x:1-x])}
+function tally(n){const M=[...Array(3)].map(()=>[...Array(3)].map(()=>[0,0]));for(let k=0;k<n&&k<NTR;k++){const[a,b,x,y]=TR[k];M[a][b][1]++;if(x==y)M[a][b][0]++}return M}
+const STARS=[];for(let k=0;k<220;k++)STARS.push([rnd()*W,rnd()*H,rnd()*1.8+0.3,rnd()]);
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+const SCRIPT=[
+['why is the epr',"Why is the EPR paradox weird?",0.3],
+['alpha centauri',"Take a pair of entangled particles, and send one of them off to Alpha Centauri.",0.6],
+['alice measures',"When Alice measures her particle, Bob's particle becomes known, even though Bob hasn't measured it yet.",0.3],
+['unknowable',"And they claim it for sure wasn't known before Alice measured. Oh no. Before that, it was in an unknowable state.",0.3],
+['so mysterious',"And they're like, \"That's so mysterious, right?\" And I'm like, why wasn't it known all along?",0.5],
+['increasingly true',"Well, here's why it couldn't have been known all along. We'll explain it with three increasingly true lies.",0.8],
+['bump a phone',"The first lie goes like this. Alice and Bob bump a phone app that gives them each a button. Pressing it shows a zero or a one.",0.3],
+['mysteriously',"And the app claims that, mysteriously, they'll see the same number, even if they press the button a light-year apart.",1.2],
+['when they bump',"But why couldn't the app just assign each phone the same number when they bump?",1.2],
+['second lie',"OK, fair enough. On to the second lie. Now the app has two buttons, and pressing either one removes both buttons, and shows a zero or a one.",0.3],
+['same button',"The claim is that if they press the same button, they'll see the same number, but if they press different buttons, they'll see different numbers. Even a light-year apart!",1.2],
+['a different number to each',"But again, why couldn't the app assign a number to each button when they bump? The same on both phones, and a different number to each button.",0],
+['no matter what',"Then the prediction works out no matter what they each decide to press.",1.2],
+['traffic light',"OK, fine. On to the third, and nearly final, lie. Now the app has three buttons, stacked like a traffic light.",0.3],
+['unless',"And now it claims that whatever they press, they'll get the same number, unless one person presses the top button and the other presses the bottom button. Then they'll get different numbers.",0.8],
+['really is tricky',"Now it really is tricky. When the phones bump, what can the app assign?",0.3],
+['assigns a one to the top',"If it assigns a one to the top button, then it needs a one on the middle button too, in case one person presses top and the other presses middle.",0],
+['bottom button too',"But then it needs a one on the bottom button too, in case one presses middle and the other presses bottom.",0],
+['all ones',"But that's no good. Now they're all ones. What if one presses the top, and the other presses the bottom?",1.0],
+['instantaneous message',"The only way out is for the app to send some kind of instantaneous message to the other phone, the moment someone presses a button.",0],
+['punch line',"But that's hard when they're a light-year apart. That's really the punch line. That's the spirit of what's weird about the EPR paradox.",1.2],
+['nits and details',"Now, the truth of the quantum matter has some nits and details, and it couldn't quite create the app we described.",0.3],
+['absolutely create',"But here's an app it could absolutely create: the top and bottom buttons match fifty percent of the time, and middle-top and middle-bottom each match eighty-five percent of the time.",0.8],
+['still impossible',"And that app is still impossible to fake by writing the numbers down at the bump.",0.6],
+['fancy math',"You'll have to take the word of the fancy math and details you're seeing here to believe that's true. Maybe I'll make a video about that.",1.5],
+['convey',"But here, I just wanted to convey the spirit of what's weird.",4],
+['the end',"The end.",2.5]];
+// the old narrated ending, kept as a virtual timeline (after T) so the "fancy math" panels can replay its scenes
+const VSCRIPT=[
+['the truth',"But the truth is an app with three buttons where, if they press the same button, they always see the same number.",0],
+['good chance',"If one presses the middle, and the other presses the top or the bottom, it's not a sure thing, but there's a good chance they match: about eighty-five percent.",0.3],
+['coin flip',"And if one presses the top and the other the bottom, it's a coin flip: a fifty percent chance they match.",0.6],
+['also be impossible',"And it turns out, an app that assigns its numbers at the bump would also be impossible.",0.5],
+['any one bump',"Here's why. Look at what the app writes down at any one bump. If the top and bottom numbers are different, then the middle can't match both of them.",0.8],
+['every time',"So every time top and bottom disagree, the middle disagrees with one of them.",0.6],
+['half the time',"Top and bottom disagree half the time, so the middle's two disagreements have to add up to at least half. That's twenty-five percent each, so the middle can match at most seventy-five percent.",1.0],
+['real particles',"But real particles match eighty-five percent. Fifteen plus fifteen is only thirty, and that can't cover fifty.",1.0],
+['polarizing filter',"In the real experiment, the buttons are the angles of a polarizing filter: zero, twenty-two and a half, and forty-five degrees. The chance of a match is the cosine squared of the angle between them.",1.0],
+['faster than light',"And experiments agree with quantum mechanics, not with the app. So the answers couldn't have been written down all along, unless the phones can talk faster than light. That's what's weird.",3]
+];
+const GAP=0.45, S=[], E=[]; let T=1.2, VT=0;
+const ALL=SCRIPT.concat(VSCRIPT);
+ALL.forEach(([k,txt,h],i)=>{if(i==SCRIPT.length){T+=0.5;VT=T+20}const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);
+ if(i<SCRIPT.length){S.push(T);E.push(T+d);T+=d+GAP+h}else{S.push(VT);E.push(VT+d);VT+=d+GAP+h}});
+const LK=k=>{const i=ALL.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);                 // event f seconds after line i ends
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={txt:'#e8eef4',dim:'#7d8b99',line:'#2a3a4a',panel:'#16212d',gold:'#ffd166',alice:'#4da3ff',bob:'#ff9f43',
+ same:'#6fd3ff',diff:'#d68cff',bad:'#ff4d4d',ok:'#3ecf6e',ink:'#08121c'};
+const BTN=['#e8524f','#f2c14e','#38c96a'];               // traffic light: top, middle, bottom
+const BTN2=[BTN[0],BTN[2]];
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const tw=(s,sz,wt='')=>{g.save();g.font=`${wt} ${sz}px ${FONT}`;const w=g.measureText(s).width;g.restore();return w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+function rich(segs,x,y,sz,al='center',a=1){if(a<=0)return;const ws=segs.map(s=>tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;segs.forEach((s,i)=>{txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]})}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function heading(s,a=1,y=72,col=C.txt){txt(s,W/2,y,54,col,'center','bold',a)}
+function stamp(s,x,y,sz,col,k){if(k<=0)return;const sc=1+2.2*(1-eo(k));g.save();g.globalAlpha*=cl(k*2.5);g.translate(x,y);g.rotate(-0.12);g.scale(sc,sc);
+ g.font=`bold ${sz}px ${FONT}`;const w=g.measureText(s).width+sz*0.7;rr(-w/2,-sz*0.75,w,sz*1.5,sz*0.25);g.fillStyle='#0b1219d0';g.fill();g.lineWidth=sz*0.12;g.strokeStyle=col;g.stroke();
+ g.fillStyle=col;g.textAlign='center';g.textBaseline='middle';g.fillText(s,0,sz*0.05);g.restore()}
+function dot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.2;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+function bubble(s,x,y,col,a,tailDx){if(a<=0)return;const sz=36,w=tw(s,sz,'bold')+60,h=86;g.save();g.globalAlpha*=a;g.fillStyle='#1d2b3a';g.strokeStyle=col;g.lineWidth=3;
+ rr(x-w/2,y-h/2,w,h,30);g.fill();g.stroke();g.beginPath();g.moveTo(x+tailDx*0.3-14,y+h/2-2);g.lineTo(x+tailDx,y+h/2+40);g.lineTo(x+tailDx*0.3+14,y+h/2-2);g.fill();g.stroke();
+ g.fillRect(x+tailDx*0.3-12,y+h/2-6,24,6);g.restore();txt(s,x,y+2,sz,C.txt,'center','bold',a)}
+// a phone. nb buttons (1..3); pk = pressed button, pp = press progress 0..1 (button pushes, buttons vanish, number shows);
+// tags = numbers written at the bump (one per button, shown as gold badges), tagA = alpha (number or per-button array)
+const BY={1:[30],2:[-80,140],3:[-120,30,180]};
+function phone(x,y,{nb=1,a=1,pk=-1,pp=0,val='',tags=null,tagA=0,name='',col=C.txt,glow=0}={}){if(a<=0)return;
+ g.save();g.globalAlpha*=a;g.translate(x,y);
+ if(glow>0){g.shadowColor=col;g.shadowBlur=60*glow}
+ rr(-150,-300,300,600,44);g.fillStyle='#223142';g.fill();g.shadowColor='transparent';g.strokeStyle='#3b5068';g.lineWidth=3;g.stroke();
+ rr(-132,-270,264,540,26);g.fillStyle='#0b1219';g.fill();
+ rr(-30,-288,60,8,4);g.fillStyle='#3b5068';g.fill();
+ g.restore();
+ txt('ENTANGLE·APP',x,y-232,20,C.dim,'center','bold',a);
+ const by=BY[nb], bc=nb==1?[C.alice]:nb==2?BTN2:BTN, fade=1-ease((pp-0.35)/0.3), dg=ease((pp-0.5)/0.35);
+ for(let i=0;i<nb;i++){let r=56;if(i==pk&&pp>0)r*=1-0.18*Math.sin(Math.PI*cl(pp/0.35));
+  g.save();g.globalAlpha*=a*fade;g.beginPath();g.arc(x-20,y+by[i],r,0,7);g.fillStyle=bc[i];g.fill();
+  g.beginPath();g.arc(x-20-r*0.25,y+by[i]-r*0.3,r*0.35,0,7);g.fillStyle='#ffffff30';g.fill();
+  if(i==pk&&pp>0){g.strokeStyle='#fff';g.lineWidth=5;g.beginPath();g.arc(x-20,y+by[i],r+10,0,7);g.stroke()}g.restore()}
+ if(dg>0){txt(val,x,y+20,240,C.gold,'center','bold',a*dg)}
+ if(tags)for(let i=0;i<nb;i++){const ta=(Array.isArray(tagA)?tagA[i]:tagA)*a*fade;if(ta<=0||tags[i]==null)continue;const q=tags[i]==='?';
+  g.save();g.globalAlpha*=ta;g.beginPath();g.arc(x+82,y+by[i],32,0,7);g.fillStyle=q?'#1d2b3a':C.gold;g.fill();g.strokeStyle=C.gold;g.lineWidth=3;g.stroke();g.restore();
+  txt(''+tags[i],x+82,y+by[i]+2,40,q?C.gold:C.ink,'center','bold',ta)}
+ if(name)txt(name,x,y+345,40,col,'center','bold',a)}
+// phones bumping together at the start of line i (fraction f), then sliding apart
+const AX=290, BX=1630, PY=500;
+function bumped(i,f){const k=ev(i,f,0.7), s=ev(i,f+0.08,1.1);
+ return {ax:lerp(W/2-152,AX,s),bx:lerp(W/2+152,BX,s),a:k,spark:s>0?Math.sin(Math.PI*cl(s*1.6))*k:0,s}}
+function spark(k){if(k<=0)return;g.save();g.globalAlpha=k;g.strokeStyle=C.gold;g.lineWidth=5;for(let q=0;q<10;q++){const ang=q*Math.PI/5+0.3;
+ g.beginPath();g.moveTo(W/2+Math.cos(ang)*40,PY+Math.sin(ang)*40);g.lineTo(W/2+Math.cos(ang)*(60+90*k),PY+Math.sin(ang)*(60+90*k));g.stroke()}g.restore();
+ txt('bump!',W/2,PY-360,44,C.gold,'center','bold',k)}
+function distance(a,lab='1 light-year'){if(a<=0)return;g.save();g.globalAlpha=a;g.setLineDash([14,12]);g.strokeStyle=C.dim;g.lineWidth=3;
+ g.beginPath();g.moveTo(AX+190,930);g.lineTo(BX-190,930);g.stroke();g.restore();
+ const w=tw(lab,34,'bold')+40;g.save();g.globalAlpha=a;g.fillStyle='#0d1620';g.fillRect(W/2-w/2,905,w,50);g.restore();txt(lab,W/2,931,34,C.dim,'center','bold',a)}
+// prediction table: rows = Alice's button, columns = Bob's button. cell(r,c) -> {s, col, a}
+function table(cx,cy,nb,cell,{a=1,cs=150,hi=[]}={}){if(a<=0)return;const bc=nb==2?BTN2:BTN, x0=cx-nb*cs/2+40, y0=cy-nb*cs/2+40;
+ txt('Bob presses →',x0+nb*cs/2,y0-108,26,C.bob,'center','bold',a);
+ g.save();g.translate(x0-108,y0+nb*cs/2);g.rotate(-Math.PI/2);txt('← Alice presses',0,0,26,C.alice,'center','bold',a);g.restore();
+ for(let i=0;i<nb;i++){dot(x0+i*cs+cs/2,y0-50,22,bc[i],a);dot(x0-50,y0+i*cs+cs/2,22,bc[i],a)}
+ for(let r=0;r<nb;r++)for(let c=0;c<nb;c++){const x=x0+c*cs,y=y0+r*cs;g.save();g.globalAlpha*=a;rr(x+5,y+5,cs-10,cs-10,14);g.fillStyle=C.panel;g.fill();g.restore();
+  const q=cell(r,c);if(q&&q.a>0){txt(q.s,x+cs/2,y+cs/2+(q.sub?-14:2),q.sz||34,q.col,'center','bold',a*q.a);if(q.sub)txt(q.sub,x+cs/2,y+cs/2+34,20,C.dim,'center','',a*q.a*(q.subA??1))}}
+ for(const[r,c,col,k,mark]of hi){if(k<=0)continue;const x=x0+c*cs,y=y0+r*cs;g.save();g.globalAlpha=a*k;g.strokeStyle=col;g.lineWidth=6;rr(x+3,y+3,cs-6,cs-6,16);g.stroke();g.restore();
+  if(mark)txt(mark,x+cs-24,y+26,30,col,'center','bold',a*k)}}
+const SAME=k=>({s:'same',col:C.same,a:k}), DIFF=k=>({s:'different',col:C.diff,a:k,sz:28});
+// ---------- scenes ----------
+function scIntro(){
+ const a1=LK('alpha centauri'),a2=LK('alice measures'),a3=LK('unknowable'),a4=LK('so mysterious');
+ const tk=ev(0,0,0.8)*(1-ev(a1,0,0.6));
+ txt('Why is the EPR paradox weird?',W/2,440,96,C.txt,'center','bold',tk);
+ txt('Einstein, Podolsky & Rosen, 1935',W/2,560,40,C.dim,'center','',ev(0,0.4,0.8)*(1-ev(a1,0,0.6)));
+ const sk=ev(a1,0,0.8);
+ // Earth and Alpha Centauri
+ const EX=230,EY=560,SX=1690;
+ if(sk>0){g.save();g.globalAlpha=sk;g.beginPath();g.arc(EX,EY,110,0,7);g.fillStyle='#2f6fc4';g.fill();g.fillStyle='#3fae62';
+  g.beginPath();g.ellipse(EX-30,EY-30,45,30,0.5,0,7);g.fill();g.beginPath();g.ellipse(EX+40,EY+35,35,50,-0.3,0,7);g.fill();g.restore();
+  glowDot(SX-25,EY,52,'#ffe08a',sk);glowDot(SX+50,EY+38,30,'#ffb36b',sk);}
+ txt('Earth · Alice',EX,EY+170,38,C.alice,'center','bold',sk);txt('Alpha Centauri · Bob',SX,EY+170,38,C.bob,'center','bold',sk);
+ // the pair
+ const pk=ev(a1,0.25,0.6), fly=ev(a1,0.5,1.6);
+ const ax=lerp(W/2-50,EX+230,fly), bx=lerp(W/2+50,SX-230,fly);
+ if(pk>0){g.save();g.globalAlpha=pk*(1-0.6*fly);g.strokeStyle=C.gold;g.lineWidth=3;g.setLineDash([8,10]);g.lineDashOffset=-tt*40;
+  g.beginPath();for(let x=ax;x<=bx;x+=6){const y=EY+Math.sin((x-ax)/30+tt*4)*10;x==ax?g.moveTo(x,y):g.lineTo(x,y)}g.stroke();g.restore()}
+ txt('entangled',W/2,EY-70,34,C.gold,'center','',pk*(1-fly));
+ distance(ev(a1,0.85,0.6)*(1-ev(a4,0.3,0.5)),'4.4 light-years');
+ const mA=ev(a2,0.12,0.5), mB=ev(a2,0.4,0.6), un=ev(a3,0.45,0.6)*(1-ev(a4,0,0.5));
+ // particle: a glowing ball; label = its value, or flickering 0/1 when 'unknowable'
+ const part=(x,col,val,va,qa)=>{glowDot(x,EY,38,col,pk);
+  if(va>0)txt(val,x,EY+3,52,C.ink,'center','bold',va*pk);
+  if(qa>0){const f=Math.floor(tt*9+x)%2;txt(''+f,x,EY+3,52,C.ink,'center','bold',qa*pk*0.6)}
+  if(qa<=0&&va<=0)txt('?',x,EY+3,52,C.ink,'center','bold',pk)};
+ part(ax,C.alice,'1',mA*(1-un),un);part(bx,C.bob,'1',mB*(1-un),un);
+ if(mA>0){g.save();g.globalAlpha=mA*(1-mB*0.6)*(1-un);g.strokeStyle='#fff';g.lineWidth=4;g.beginPath();g.arc(ax,EY,38+40*mA,0,7);g.stroke();g.restore()}
+ txt('Alice measures: 1',ax,EY-90,34,C.alice,'center','bold',mA*(1-un));
+ txt('now known: 1',bx,EY-90,34,C.bob,'center','bold',mB*(1-un));
+ txt('(Bob hasn’t looked yet)',bx,EY+80,28,C.dim,'center','',mB*(1-un));
+ rich([['before Alice measured: ',C.dim],['“unknowable”',C.gold,'bold'],[' — not 0, not 1, not yet decided',C.dim]],W/2,250,40,'center',un);
+ const b1=ev(a4,0.05,0.5), b2=ev(a4,0.5,0.5);
+ bubble('“So mysterious, right?”',620,880,C.dim,b1,-60);
+ bubble('Why wasn’t it known all along?',1300,940,C.gold,b2,80)}
+function scLies(){
+ const a=LK('increasingly true');heading('Why couldn’t it be known all along?',ev(a,0,0.6),110);
+ txt('three increasingly true lies',W/2,190,40,C.gold,'center','',ev(a,0.55,0.6));
+ const L=[['lie #1','one button',1],['lie #2','two buttons',2],['lie #3','three buttons',3],['the truth','',3]];
+ L.forEach(([t,s,nb],q)=>{const k=q<3?ev(a,0.6+q*0.1,0.5):after(a,0.3,0.6),x=360+q*400,y=600;
+  g.save();g.translate(x,y);g.scale(0.62,0.62);g.translate(-x,-y);phone(x,y,{nb,a:k*(q==3?0.45:1)});g.restore();
+  txt(t,x,y-260,40,q==3?C.dim:C.gold,'center','bold',k);txt(s,x,y+250,30,C.dim,'center','',k);
+  if(q==3)txt('?',x,y,140,C.gold,'center','bold',k)})}
+function scLie1(){
+ const a=LK('bump a phone'),b=LK('mysteriously'),c=LK('when they bump');
+ heading('Lie #1: one button',ev(a,0,0.5),72,C.gold);
+ const p=bumped(a,0.3);spark(p.spark);
+ txt('press it: 0 or 1',W/2,PY+30,40,C.dim,'center','',ev(a,0.8,0.5)*(1-ev(b,0,0.4)));
+ rich([['the app’s claim: ',C.dim],['they’ll see the same number',C.same,'bold']],W/2,175,42,'center',ev(b,0.1,0.6));
+ distance(ev(b,0.55,0.6));
+ const pA=ev(b,0.72,0.9), pB=after(b,0.15,0.9), rs=ev(c,0.1,0.5), p2A=after(c,0.1,0.8), p2B=after(c,0.4,0.8);
+ const ok=after(b,0.7,0.4)*(1-rs);
+ txt('same ✓',W/2,PY+30,64,C.same,'center','bold',ok);
+ const tg=ev(c,0.5,0.6);
+ const ppA=Math.max(pA*(1-rs),p2A), ppB=Math.max(pB*(1-rs),p2B);
+ phone(p.ax,PY,{nb:1,a:p.a,pk:0,pp:ppA,val:'1',tags:['1'],tagA:tg,name:'Alice',col:C.alice});
+ phone(p.bx,PY,{nb:1,a:p.a,pk:0,pp:ppB,val:'1',tags:['1'],tagA:tg,name:'Bob',col:C.bob});
+ txt('written down at the bump:',W/2,PY-40,36,C.gold,'center','bold',tg);
+ txt('the same number on both phones',W/2,PY+15,32,C.gold,'center','',tg);
+ txt('(random, but the same)',W/2,PY+65,28,C.dim,'center','',ev(c,0.75,0.6));
+ txt('no mystery',W/2,PY+190,52,C.ok,'center','bold',after(c,0.6,0.5))}
+function scLie2(){
+ const a=LK('second lie'),b=LK('same button'),c=LK('a different number to each'),d=LK('no matter what');
+ heading('Lie #2: two buttons',ev(a,0.1,0.5),72,C.gold);
+ const p=bumped(a,0.3);spark(p.spark);
+ const dA=ev(a,0.72,0.9), rs=ev(b,0,0.5);
+ const tb=ev(b,0.05,0.6);
+ rich([['claim: same button → ',C.dim],['same number',C.same,'bold'],[' · different buttons → ',C.dim],['different numbers',C.diff,'bold']],W/2,175,38,'center',tb);
+ const sameK=ev(b,0.3,0.5), difK=ev(b,0.6,0.5), rs2=ev(c,0,0.5);
+ const dpA=after(b,0,0.9)*(1-rs2), dpB=after(b,0.2,0.9)*(1-rs2);
+ const tg=ev(c,0.5,0.6), TAG=['1','0'];
+ // check marks from the tags: the claim holds for each pair of buttons
+ const hi=[];let n=0;for(let r=0;r<2;r++)for(let q=0;q<2;q++){const okk=(TAG[r]==TAG[q])==(r==q);hi.push([r,q,okk?C.ok:C.bad,ev(d,0.1+0.15*n,0.4),okk?'✓':'✗']);n++}
+ table(W/2,PY+20,2,(r,q)=>r==q?SAME(sameK):DIFF(difK),{a:tb*(1-ease(dpA*2)*(1-rs2)),cs:170,hi});
+ phone(p.ax,PY,{nb:2,a:p.a,pk:0,pp:Math.max(dA*(1-rs),dpA),val:dA*(1-rs)>0.01?'0':'1',tags:TAG,tagA:tg,name:'Alice',col:C.alice});
+ phone(p.bx,PY,{nb:2,a:p.a,pk:1,pp:dpB,val:'0',tags:TAG,tagA:tg,name:'Bob',col:C.bob});
+ txt('pressing either one removes both',W/2,PY+30,36,C.dim,'center','',dA*(1-rs));
+ distance(ev(b,0.85,0.6));
+ txt('different ✓',W/2,PY+30,60,C.diff,'center','bold',after(b,0.7,0.4)*(1-rs2));
+ txt('written at the bump: top = 1, bottom = 0, on both phones',W/2,860,32,C.gold,'center','bold',tg*(1-ev(d,0,0.4)));
+ txt('works no matter what they press',W/2,860,40,C.ok,'center','bold',ev(d,0.75,0.5))}
+function scLie3(){
+ const a=LK('traffic light'),b=LK('unless'),c=LK('really is tricky'),d=LK('assigns a one to the top'),e=LK('bottom button too'),f=LK('all ones'),gm=LK('instantaneous message'),h=LK('punch line');
+ heading('Lie #3: three buttons',ev(a,0.25,0.5),72,C.gold);
+ const p=bumped(a,0.45);spark(p.spark);
+ const tb=ev(b,0.05,0.6);
+ rich([['claim: always the ',C.dim],['same number',C.same,'bold'],[', except top vs bottom → ',C.dim],['different',C.diff,'bold']],W/2,175,38,'center',tb*(1-ev(h,0.55,0.4)));
+ const sK=ev(b,0.25,0.5), dK=ev(b,0.62,0.5);
+ const q=ev(c,0.45,0.5), t1=ev(d,0.12,0.5), m1=ev(d,0.7,0.5), b1=ev(e,0.55,0.5);
+ const hi=[[0,1,C.ok,ev(d,0.4,0.4)*(1-ev(e,0.2,0.4)),''],[1,0,C.ok,ev(d,0.4,0.4)*(1-ev(e,0.2,0.4)),''],
+  [1,2,C.ok,ev(e,0.25,0.4)*(1-ev(f,0.4,0.4)),''],[2,1,C.ok,ev(e,0.25,0.4)*(1-ev(f,0.4,0.4)),''],
+  [0,2,C.bad,ev(f,0.55,0.4),'✗'],[2,0,C.bad,ev(f,0.55,0.4),'✗']];
+ const ta=(T1,M1,B1)=>[Math.max(T1,q),Math.max(M1,q),Math.max(B1,q)];
+ const tags=[t1>0.5?'1':'?',m1>0.5?'1':'?',b1>0.5?'1':'?'];
+ table(W/2,PY+20,3,(r,c2)=>(r==0&&c2==2)||(r==2&&c2==0)?DIFF(dK):SAME(sK),{a:tb,cs:150,hi});
+ phone(p.ax,PY,{nb:3,a:p.a,tags,tagA:ta(t1,m1,b1),name:'Alice',col:C.alice});
+ phone(p.bx,PY,{nb:3,a:p.a,tags,tagA:ta(t1,m1,b1),name:'Bob',col:C.bob});
+ txt('what does the app write down?',W/2,860,34,C.gold,'center','bold',ev(c,0.3,0.5)*(1-ev(d,0,0.4)));
+ txt('top = 1  →  middle must be 1',W/2,860,34,C.gold,'center','bold',ev(d,0.6,0.5)*(1-ev(e,0,0.4)));
+ txt('middle = 1  →  bottom must be 1',W/2,860,34,C.gold,'center','bold',ev(e,0.45,0.5)*(1-ev(f,0,0.4)));
+ txt('top = 1 and bottom = 1: not different!',W/2,860,34,C.bad,'center','bold',ev(f,0.6,0.5)*(1-ev(gm,0,0.4)));
+ txt('(starting with a 0 fails the same way)',W/2,905,26,C.dim,'center','',after(f,0.2,0.5)*(1-ev(gm,0,0.4)));
+ stamp('NO WAY',W/2,PY+20,90,C.bad,ev(f,0.85,0.5)*(1-ev(gm,0,0.4)));
+ // the instantaneous message
+ const zk=ev(gm,0.35,0.6), slow=ev(h,0.05,0.6);
+ if(zk>0){g.save();g.globalAlpha=zk*(1-slow);g.strokeStyle=C.gold;g.lineWidth=6;g.shadowColor=C.gold;g.shadowBlur=20;g.beginPath();
+  if(slow<1){const x0=AX+170,x1=lerp(x0,BX-170,eo(zk/0.9));for(let x=x0,k=0;x<=x1;x+=40,k++){const y=930+(k%2?-22:22);x==x0?g.moveTo(x,930):g.lineTo(x,y)}g.stroke()}g.restore()}
+ txt('⚡ instant message: “Alice pressed top!”',W/2,880,34,C.gold,'center','bold',zk*(1-slow));
+ if(slow>0){distance(slow*(1-ev(h,0.55,0.4)));const lx=lerp(AX+190,BX-190,0.02+0.03*cl((tt-S[h])/8));glowDot(lx,930,14,'#fff',slow);
+  txt('light needs a whole year to get there',W/2,880,34,C.txt,'center','bold',slow*(1-ev(h,0.55,0.4)))}
+ const pl=ev(h,0.6,0.6);
+ txt('that’s the spirit of the EPR paradox',W/2,880,48,C.gold,'center','bold',pl)}
+function scTruth(){
+ const a=LK('the truth'),b=LK('good chance'),c=LK('coin flip'),d=LK('also be impossible');
+ heading('The truth: real entangled particles',ev(a,0,0.5),72,C.gold);
+ txt('chance they see the same number',W/2,135,36,C.dim,'center','',ev(a,0.3,0.5));
+ const dk=ev(a,0.6,0.5), mk=ev(b,0.75,0.5), bk=ev(c,0.6,0.5);
+ const ntr=Math.floor(NTR*cl((tt-S[a]-1)/(E[c]+2-S[a]-1))), M=tally(ntr), sA=ev(a,0.4,0.5);
+ const pc=v=>(v*100).toFixed(v==1?0:1)+'%';
+ table(W/2,PY+45,3,(r,q)=>{const k=r==q?dk:(r+q==2&&r!=q)?bk:mk,[m,n]=M[r][q];
+  return {s:pc(PSAME(r,q)),col:r==q?C.same:r+q==2?C.diff:C.txt,a:k,sz:38,sub:n?`simulated: ${(100*m/n).toFixed(0)}%`:'',subA:sA}},{a:ev(a,0.2,0.6),cs:170});
+ phone(AX,PY,{nb:3,a:1,tags:['?','?','?'],tagA:ev(d,0.45,0.5),name:'Alice',col:C.alice});
+ phone(BX,PY,{nb:3,a:1,tags:['?','?','?'],tagA:ev(d,0.45,0.5),name:'Bob',col:C.bob});
+ txt(`simulated presses: ${ntr.toLocaleString('en-US')}`,W/2,870,30,C.dim,'center','',sA*(1-ev(d,0,0.5)));
+ txt('written down at the bump?',W/2,870,36,C.gold,'center','bold',ev(d,0.4,0.5));
+ stamp('ALSO IMPOSSIBLE',W/2,PY+45,72,C.bad,ev(d,0.8,0.5))}
+function scWhy(){
+ const a=LK('any one bump'),b=LK('every time'),c=LK('half the time'),d=LK('real particles');
+ heading('Why: the triangle inequality',ev(a,0,0.5),66);
+ txt('the 8 things the app could write down at a bump (top, middle, bottom):',W/2,140,32,C.dim,'center','',ev(a,0.15,0.5));
+ const up=ev(c,0,0.8), TY=lerp(370,300,up), sc=lerp(1,0.8,up);
+ BITS.forEach(([t,m,bb],i)=>{const x=165+i*227,k=ev(a,0.25+i*0.05,0.4), tb=t!=bb, hk=ev(a,0.72,0.5)*(tb?1:0), mk=ev(b,0.15,0.5)*(tb?1:0), dimk=ev(a,0.72,0.5)*(tb?0:0.55);
+  g.save();g.translate(x,TY);g.scale(sc,sc);g.translate(-x,-TY);
+  g.save();g.globalAlpha=k*(1-dimk);rr(x-95,TY-150,190,300,20);g.fillStyle=C.panel;g.fill();if(hk>0){g.globalAlpha=k*hk;g.strokeStyle=C.diff;g.lineWidth=5;g.stroke()}g.restore();
+  const v=[t,m,bb];for(let r=0;r<3;r++){dot(x-35,TY-90+r*90,34,BTN[r],k*(1-dimk));txt(''+v[r],x-35,TY-88+r*90,40,C.ink,'center','bold',k*(1-dimk))}
+  // links: top–bottom (outer), and the middle's mismatch
+  const link=(y1,y2,dx,col,al)=>{if(al<=0)return;g.save();g.globalAlpha=al;g.strokeStyle=col;g.lineWidth=5;g.beginPath();g.moveTo(x+5,y1);g.bezierCurveTo(x+dx,y1,x+dx,y2,x+5,y2);g.stroke();g.restore()};
+  link(TY-90,TY+90,90,C.diff,k*hk);
+  const mm=t!=m?[TY-90,TY]:[TY,TY+90];link(mm[0]+6,mm[1]-6,45,C.gold,k*mk);
+  txt(tb?'top ≠ bottom':'top = bottom',x,TY+178,24,tb?C.diff:C.dim,'center','bold',k*(tb?hk:ev(a,0.72,0.5))*(1-up));
+  txt(t!=m?'middle ≠ top':'middle ≠ bottom',x,TY+214,24,C.gold,'center','bold',k*mk*(1-up));
+  g.restore()});
+ rich([['top ≠ bottom',C.diff,'bold'],['   ⟹   middle ≠ top, or middle ≠ bottom',C.gold,'bold']],W/2,TY+260*sc-(up*20),36,'center',ev(b,0.5,0.6));
+ // bars (percent of bumps)
+ const L=560,K=20,y1=650,y2=760,y3=870, bk=ev(c,0.05,0.6), b2=ev(c,0.35,0.7), fk=ev(c,0.72,0.6), qk=ev(d,0.05,0.6), gk=ev(d,0.6,0.6);
+ const bar=(y,x,w,col,lab,al)=>{if(al<=0)return;g.save();g.globalAlpha=al;g.fillStyle=col;rr(x,y-30,Math.max(1,w),60,10);g.fill();g.restore();if(lab&&w>60)txt(lab,x+w/2,y+2,28,C.ink,'center','bold',al)};
+ txt('top ≠ bottom',L-30,y1,32,C.diff,'right','bold',bk);bar(y1,L,(1-P_TB)*100*K*eo(bk),C.diff,pc0(1-P_TB),bk);
+ const mis=1-PMAX;
+ txt('middle’s disagreements',L-30,y2,32,C.gold,'right','bold',b2);
+ bar(y2,L,mis*100*K*eo(b2),C.gold,'≠ top '+pc0(mis),b2);bar(y2,L+mis*100*K+6,mis*100*K*eo(b2),'#e0a93a','≠ bottom '+pc0(mis),b2);
+ rich([['at least 25% each  →  middle matches at most ',C.txt],[pc0(PMAX),C.gold,'bold']],L+500,y2+70,32,'center',fk*(1-qk));
+ txt('(a Bell inequality: John Bell, 1964)',L+500,y3+70,26,C.dim,'center','',fk*(1-qk));
+ const qm=1-P_TM;
+ txt('real particles',L-30,y3,32,C.same,'right','bold',qk);
+ bar(y3,L,qm*100*K*eo(qk),C.same,pc1(qm),qk);bar(y3,L+qm*100*K+6,qm*100*K*eo(qk),'#4fb3dd',pc1(qm),qk);
+ const gx=L+2*qm*100*K+12, gw=(1-P_TB)*100*K-2*qm*100*K-12;
+ if(gk>0){g.save();g.globalAlpha=gk;g.setLineDash([10,8]);g.strokeStyle=C.bad;g.lineWidth=4;rr(gx,y3-30,gw,60,10);g.stroke();g.restore();
+  txt(pc1(1-P_TB-2*qm)+' short',gx+gw/2,y3+2,28,C.bad,'center','bold',gk)}
+ rich([[pc1(qm)+' + '+pc1(qm)+' = ',C.txt],[pc1(2*qm),C.same,'bold'],['  <  50%  →  ',C.txt],['can’t be written down in advance',C.bad,'bold']],W/2,y3+80,34,'center',ev(d,0.75,0.6));
+ }
+const pc0=v=>Math.round(v*100)+'%', pc1=v=>(v*100).toFixed(1)+'%';
+function scReal(){
+ const a=LK('polarizing filter'),b=LK('faster than light');
+ heading('In the lab: polarized light',ev(a,0,0.5)*(1-ev(b,0,0.5)),72);
+ const ak=ev(a,0.05,0.6)*(1-ev(b,0,0.6));
+ // source and two polarizers; Alice's at 0° (top), Bob's steps through top, middle, bottom
+ const PYc=400, sx=W/2, lx=560, bx=1360;
+ const step=Math.min(2,Math.floor(cl((tt-S[a]-0.5*(E[a]-S[a]))/(0.45*(E[a]-S[a])))*3)), bAng=ANG[step];
+ if(ak>0){glowDot(sx,PYc,26,C.gold,ak);txt('entangled photon pairs',sx,PYc-70,28,C.gold,'center','',ak);
+  for(let k=0;k<4;k++){const f=((tt*0.8+k/4)%1),d=f*(bx-sx-110);glowDot(sx-d,PYc,9,'#fff',ak*(1-f*0.3));glowDot(sx+d,PYc,9,'#fff',ak*(1-f*0.3))}
+  const pol=(x,ang,col,lab)=>{g.save();g.globalAlpha=ak;g.translate(x,PYc);g.beginPath();g.arc(0,0,110,0,7);g.fillStyle='#1d2b3acc';g.fill();g.strokeStyle=col;g.lineWidth=8;g.stroke();
+   g.rotate(-ang*Math.PI/180);g.strokeStyle='#ffffff60';g.lineWidth=3;for(let k=-4;k<=4;k++){const yy=k*20,hw=Math.sqrt(100*100-yy*yy);g.beginPath();g.moveTo(-hw,yy);g.lineTo(hw,yy);g.stroke()}
+   g.strokeStyle='#fff';g.lineWidth=6;g.beginPath();g.moveTo(-100,0);g.lineTo(100,0);g.stroke();g.restore();
+   txt(lab,x,PYc+150,34,col,'center','bold',ak)};
+  pol(lx,0,BTN[0],'Alice: 0°');pol(bx,bAng,BTN[step],'Bob: '+ANG[step]+'°')}
+ // the button → angle key and the cos² numbers
+ const kk=ev(a,0.25,0.6)*(1-ev(b,0,0.6));
+ ['top','middle','bottom'].forEach((n,i)=>{const x=560+i*400;dot(x-90,680,26,BTN[i],kk);txt(`${n} = ${ANG[i]}°`,x-50,682,36,C.txt,'left','bold',kk)});
+ rich([['chance of the same number = cos²(angle between)',C.txt,'bold']],W/2,790,40,'center',ev(a,0.7,0.6)*(1-ev(b,0,0.6)));
+ const vk=ev(a,0.85,0.6)*(1-ev(b,0,0.6));
+ rich([['cos²(0°) = ',C.dim],[pc0(PSAME(0,0)),C.same,'bold'],['      cos²(22.5°) = ',C.dim],[pc1(P_TM),C.txt,'bold'],['      cos²(45°) = ',C.dim],[pc1(P_TB),C.diff,'bold']],W/2,880,38,'center',vk);
+ // ending
+ const e1=ev(b,0.05,0.6),e2=ev(b,0.4,0.6),e3=ev(b,0.75,0.6);
+ txt('experiments agree with quantum mechanics',W/2,260,50,C.txt,'center','bold',e1);
+ txt('Clauser 1972 · Aspect 1982 · loophole-free tests 2015 · Nobel Prize 2022',W/2,340,30,C.dim,'center','',e1);
+ txt('so the answers weren’t written down at the bump',W/2,500,50,C.gold,'center','bold',e2);
+ txt('…unless the phones talk faster than light',W/2,600,50,C.gold,'center','bold',e3);
+ txt('(even so, nobody can use it to send a message: each phone alone just shows random 0s and 1s)',W/2,760,28,C.dim,'center','',after(b,0.3,0.8));
+ txt('that’s what’s weird.',W/2,920,64,C.txt,'center','bold',after(b,1.0,0.8))}
+
+// ---------- the new ending (Oct-24): the truth app, the fancy math wall, the end ----------
+function scTruthApp(){
+ const a=LK('nits and details'),b=LK('absolutely create'),c=LK('still impossible');
+ heading('The truth: real entangled particles',ev(a,0,0.5),72,C.gold);
+ const sub=ev(b,0,0.5);
+ txt('quantum mechanics can’t build lie #3 exactly',W/2,135,34,C.dim,'center','',ev(a,0.3,0.5)*(1-sub));
+ txt('chance they see the same number',W/2,135,36,C.dim,'center','',sub);
+ const dk=ev(b,0.1,0.6), bk=ev(b,0.32,0.6), mk=ev(b,0.68,0.6);
+ const ntr=Math.floor(NTR*cl((tt-S[b]-0.5*(E[b]-S[b]))/(E[c]+1-S[b]-0.5*(E[b]-S[b])))), M=tally(ntr), sA=ev(b,0.8,0.5);
+ const pc=v=>(v*100).toFixed(v==1?0:1)+'%';
+ table(W/2,PY+45,3,(r,q)=>{const tb=r+q==2&&r!=q, k=r==q?dk:tb?bk:mk;
+  if(k<0.5)return tb?{...DIFF(1),a:1-2*k}:{...SAME(1),a:1-2*k};
+  const[m,n]=M[r][q];return {s:pc(PSAME(r,q)),col:r==q?C.same:tb?C.diff:C.txt,a:2*k-1,sz:38,sub:n?`simulated: ${(100*m/n).toFixed(0)}%`:'',subA:sA}},{a:ev(a,0,0.5),cs:170});
+ stamp('NOT QUITE',W/2,PY+45,80,C.bad,ev(a,0.7,0.5)*(1-ev(b,0,0.4)));
+ const qa=ev(c,0.35,0.5);
+ phone(AX,PY,{nb:3,a:1,tags:['?','?','?'],tagA:qa,name:'Alice',col:C.alice});
+ phone(BX,PY,{nb:3,a:1,tags:['?','?','?'],tagA:qa,name:'Bob',col:C.bob});
+ txt(`simulated presses: ${ntr.toLocaleString('en-US')}`,W/2,890,30,C.dim,'center','',sA*(1-ev(c,0,0.5)));
+ txt('written down at the bump?',W/2,890,36,C.gold,'center','bold',qa);
+ stamp('STILL IMPOSSIBLE TO FAKE',W/2,PY+45,62,C.bad,ev(c,0.75,0.5))}
+function scFormulas(k0){ // the "details" card, revealed by k0 (seconds since it appeared)
+ const r=i=>ease((k0-0.3-i*0.45)/0.4);
+ txt('the details',W/2,90,60,C.txt,'center','bold',r(0));
+ rich([['|Φ⁺⟩ = ( |HH⟩ + |VV⟩ ) / √2',C.gold,'bold']],W/2,220,64,'center',r(1));
+ rich([['P(same) = cos²( θ',C.txt],['Alice',C.alice,'bold'],[' − θ',C.txt],['Bob',C.bob,'bold'],[' )',C.txt]],W/2,350,56,'center',r(2));
+ ['top 0°','middle 22.5°','bottom 45°'].forEach((n,i)=>{dot(560+i*420-30,470,24,BTN[i],r(3));txt(n,560+i*420,472,44,C.txt,'left','bold',r(3))});
+ rich([['cos² 22.5° = ',C.dim],[pc1(P_TM),C.txt,'bold'],['     cos² 45° = ',C.dim],[pc1(P_TB),C.diff,'bold']],W/2,580,52,'center',r(4));
+ rich([['Bell:  P(T≠B)  ≤  P(T≠M) + P(M≠B)',C.txt,'bold']],W/2,720,56,'center',r(5));
+ rich([['50%  ≤  ',C.diff,'bold'],[pc1(1-P_TM)+' + '+pc1(1-P_TM)+' = '+pc1(2*(1-P_TM)),C.same,'bold'],['   ✗',C.bad,'bold']],W/2,840,56,'center',r(6));
+ txt('a pre-assigned app could reach 75% at most; real particles get 85.4%',W/2,960,34,C.dim,'center','',r(7))}
+const PAN=[];
+function panel(i,x,y,sc,a,fn){if(a<=0)return;if(!PAN[i])PAN[i]=Object.assign(document.createElement('canvas'),{width:W,height:H});
+ const pc=PAN[i], g0=g;g=pc.getContext('2d');g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;g.fillStyle='#0b131c';g.fillRect(0,0,W,H);
+ const t0=tt;try{fn()}finally{tt=t0;g=g0}
+ g.save();g.globalAlpha*=a;g.translate(x,y+(1-a)*30);g.shadowColor='#000a';g.shadowBlur=30;g.drawImage(pc,0,0,W*sc,H*sc);g.shadowColor='transparent';
+ g.strokeStyle='#3b5068';g.lineWidth=3;g.strokeRect(0,0,W*sc,H*sc);g.restore()}
+function scMath(){
+ const m=LK('fancy math'),v=LK('convey');
+ const out=1-ev(v,0,0.7);
+ txt('the fancy math and details (take its word for now)',W/2,52,40,C.gold,'center','bold',ev(m,0,0.5)*out);
+ // panels: [x, y, scale, appears at fraction of the line, draw]; bottom-right corner left free for the speaker's face circle
+ const t1=tt, at=f=>S[m]+f*(E[m]-S[m]);
+ const items=[
+  [60,100,0.45,0.02,()=>{tt=Math.min(E[LK('coin flip')]+0.8,S[LK('the truth')]+Math.max(0,t1-at(0.02))*2.4);scTruth()}],
+  [1004,100,0.45,0.18,()=>{tt=Math.min(E[LK('real particles')]+1.5,S[LK('any one bump')]+Math.max(0,t1-at(0.18))*2.6);scWhy()}],
+  [60,590,0.45,0.34,()=>{scFormulas(Math.max(0,t1-at(0.34))*1.4)}],
+  [960,600,0.37,0.5,()=>{tt=Math.min(E[LK('polarizing filter')]+0.8,S[LK('polarizing filter')]+Math.max(0,t1-at(0.5))*1.6);scReal()}]];
+ items.forEach(([x,y,sc,f,fn],k)=>panel(k,x,y,sc,ev(m,f,0.6)*out,fn));
+ const s1=ev(v,0.1,0.5),s2=ev(v,0.45,0.6),s3=after(v,0.3,0.6);
+ txt('the spirit of what’s weird:',W/2,330,56,C.txt,'center','bold',s1);
+ txt('the answers couldn’t have been written down at the bump',W/2,470,52,C.gold,'center','bold',s2);
+ txt('…unless the phones can talk faster than light',W/2,570,52,C.gold,'center','bold',s3);
+ txt('(and even then, nobody can use it to send a message: each phone alone just shows random 0s and 1s)',W/2,760,28,C.dim,'center','',after(v,1.6,0.8))}
+function scEnd(){
+ const e=LK('the end'),k=ev(e,0,0.6);
+ txt('The end.',W/2,470,140,C.txt,'center','bold',k);
+ txt('Why is the EPR paradox weird?',W/2,640,44,C.gold,'center','',after(e,0.2,0.8));
+ for(let i=0;i<3;i++)dot(W/2-60+i*60,760,18,BTN[i],after(e,0.5,0.8))}
+const SCENES=[['intro',0,scIntro],['three lies',5,scLies],['lie #1',6,scLie1],['lie #2',9,scLie2],['lie #3',13,scLie3],['the truth',21,scTruthApp],['fancy math',24,scMath],['the end',26,scEnd]];
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ g.fillStyle='#fff';for(const[x,y,r,p]of STARS){g.globalAlpha=0.25+0.25*Math.sin(t*1.3+p*20);g.fillRect(x,y,r,r)}g.globalAlpha=1;
+ for(let q=0;q<SCENES.length;q++){const s0=q?S[SCENES[q][1]]-GAP*0.6:0, s1=q<SCENES.length-1?S[SCENES[q+1][1]]-GAP*0.6:T+1;
+  if(t<s0-0.35||t>s1+0.35)continue;const a=Math.min(cl((t-s0+0.35)/0.35),cl((s1+0.35-t)/0.35));if(a<=0)continue;
+  g.save();g.globalAlpha=q?a:Math.min(1,cl((s1+0.35-t)/0.35));SCENES[q][2]();g.restore()}
+ return cv}
+// the booth's frames per line: [key, [start, middle, end anim times]]
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+
+return {frame:drawFrame,VK};})();
+function vspan(text){const s=text.toLowerCase().replace(/’/g,"'"); const k=VID.VK.find(k=>s.includes(k[0])); if(!k)return null;
+ return k[1].map((t,i)=>[t,['start','middle','end'][i]])}
+let vjob=0;
+function paintFrames(){const job=++vjob, q=[...document.querySelectorAll('canvas.vf')];
+ const step=()=>{if(job!==vjob||!q.length)return; const c=q.shift(), g=c.getContext('2d'); g.imageSmoothingQuality='high';
+  g.drawImage(VID.frame(+c.dataset.t),0,0,c.width,c.height); setTimeout(step,0)}; step()}
+function zoomFrame(t,lab){const o=$('vbig'); o.style.display='flex'; const c=o.querySelector('canvas'), g=c.getContext('2d');
+ g.imageSmoothingQuality='high'; g.drawImage(VID.frame(t),0,0,c.width,c.height); o.querySelector('span').textContent=lab+' · anim t = '+t.toFixed(1)+' s'}
+$('vbig').onclick=()=>$('vbig').style.display='none';
+$('cam').checked=localStorage.getItem('epr1-cam')==='on';document.body.classList.toggle('camon',$('cam').checked);
+$('cam').onchange=async e=>{localStorage.setItem('epr1-cam',e.target.checked?'on':'off');document.body.classList.toggle('camon',e.target.checked);
+ if(rec&&rec.state==='recording')return;
+ if(e.target.checked||stream){try{await openMic()}catch(err){alert('Camera blocked: '+err.message);e.target.checked=false;document.body.classList.remove('camon')}}};
+if($('cam').checked)setTimeout(()=>openMic().catch(()=>{}),0);
+$('frames').checked=localStorage.getItem('epr1-frames')!=='off';document.body.classList.toggle('nof',!$('frames').checked);
+$('frames').onchange=e=>{localStorage.setItem('epr1-frames',e.target.checked?'on':'off');document.body.classList.toggle('nof',!e.target.checked);go(cur,false)};
+let LINES=[], cur=0, rec=null, chunks=[], t0=0, cues=[], stream=null, an=null, playing=null, tick=null;
+function parse(txt){const out=[];let dir=[];for(let r of txt.split('\n')){r=r.trim();if(!r)continue;
+ if(/^\(.*\)$/.test(r)){dir.push(r.slice(1,-1));continue}out.push({text:r,dir:dir.join(' · ')});dir=[]}return out}
+function render(){$('lines').innerHTML=LINES.map((l,i)=>{const v=vspan(l.text);return `<div class="ln" data-i="${i}"><div class="tx">${l.dir?`<span class="dir">${esc(l.dir)}</span>`:''}${esc(l.text)}</div>${v?`<div class="vth">${v.map(([t,n])=>`<figure><canvas class="vf" width="384" height="216" data-t="${t}" data-n="${n}"></canvas><figcaption>${n}</figcaption></figure>`).join('')}</div>`:''}</div>`}).join('');
+ [...document.querySelectorAll('canvas.vf')].forEach(c=>c.onclick=e=>{e.stopPropagation();zoomFrame(+c.dataset.t,c.dataset.n)});paintFrames();
+ [...document.querySelectorAll('.ln')].forEach(e=>e.onclick=()=>go(+e.dataset.i));go(0)}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+function go(i,log=true){cur=Math.max(0,Math.min(LINES.length-1,i));
+ document.querySelectorAll('.ln').forEach((e,j)=>{e.classList.toggle('cur',j==cur);e.classList.toggle('done',j<cur)});
+ const e=document.querySelector(`.ln[data-i="${cur}"]`);if(!e)return;
+ const H=$('stage').clientHeight;$('lines').style.transform=`translateY(${H*0.38-e.offsetTop}px)`;
+ if(log&&rec&&rec.state==='recording')cues.push({t:+(now()).toFixed(2),line:cur})}
+const now=()=>(performance.now()-t0)/1000;
+const fmt=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+function loadScript(){const s=localStorage.getItem('epr1-script');$('script').value=s||DEFAULT;LINES=parse($('script').value);render()}
+$('apply').onclick=()=>{localStorage.setItem('epr1-script',$('script').value);LINES=parse($('script').value);render();$('sst').textContent='using '+LINES.length+' lines'};
+$('reset').onclick=()=>{localStorage.removeItem('epr1-script');loadScript();$('sst').textContent='reset'};
+// mic
+async function mics(){try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind=='audioinput');
+ const v=$('mic').value;$('mic').innerHTML=d.map(x=>`<option value="${x.deviceId}">${esc(x.label||'microphone')}</option>`).join('');if(v)$('mic').value=v}catch(e){}}
+async function openMic(){if(stream)stream.getTracks().forEach(t=>t.stop());const c=$('clean').checked;
+ stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('mic').value?{exact:$('mic').value}:undefined,echoCancellation:c,noiseSuppression:c,autoGainControl:c,channelCount:1},
+  video:$('cam').checked?{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30},facingMode:'user'}:false});
+ $('camv').srcObject=$('cam').checked?stream:null;
+ mics();const ac=new AudioContext(),src=ac.createMediaStreamSource(stream);an=ac.createAnalyser();an.fftSize=1024;src.connect(an)}
+function meter(){if(an){const a=new Float32Array(an.fftSize);an.getFloatTimeDomainData(a);let m=0;for(const x of a)m=Math.max(m,Math.abs(x));
+ const i=$('meter').firstChild;i.style.width=Math.min(100,m*110)+'%';i.style.background=m>.95?'#e33':m>.6?'#cc4':'#4c4'}requestAnimationFrame(meter)}meter();
+$('mic').onchange=$('clean').onchange=()=>{if(stream)openMic()};
+async function startRec(){if(rec&&rec.state==='recording')return;stopPlay();
+ try{await openMic()}catch(e){alert('Microphone blocked: '+e.message);return}
+ const from=cur;go(from,false);
+ if($('count').checked){const cd=$('cd');cd.style.display='flex';for(const n of[3,2,1]){cd.textContent=n;await new Promise(r=>setTimeout(r,700))}cd.style.display='none'}
+ const vid=stream.getVideoTracks().length>0;
+ const mt=(vid?['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/mp4','video/webm']:['audio/webm;codecs=opus','audio/mp4','audio/webm']).find(m=>MediaRecorder.isTypeSupported(m));
+ rec=new MediaRecorder(stream,{mimeType:mt,audioBitsPerSecond:160000,...(vid?{videoBitsPerSecond:1200000}:{})});chunks=[];cues=[{t:0,line:from}];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});addTake(blob,now(),cues.slice())};
+ t0=performance.now();rec.start(1000);$('rec').classList.add('on');$('rec').disabled=true;$('stop').disabled=false;
+ tick=setInterval(()=>$('clock').textContent=fmt(now()),100)}
+function stopRec(){if(!rec||rec.state!=='recording')return;rec.stop();clearInterval(tick);$('rec').classList.remove('on');$('rec').disabled=false;$('stop').disabled=true}
+$('rec').onclick=startRec;$('stop').onclick=stopRec;
+addEventListener('keydown',e=>{if(e.target.tagName=='TEXTAREA'||e.target.tagName=='INPUT')return;
+ if($('vbig').style.display=='flex'&&e.key=='Escape'){$('vbig').style.display='none';return}
+ if(e.key==' '||e.key=='ArrowRight'||e.key=='ArrowDown'){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'||e.key=='ArrowUp'){e.preventDefault();go(cur-1)}
+ else if(e.key=='r'||e.key=='R')startRec();else if(e.key=='s'||e.key=='S'||e.key=='Escape')stopRec()});
+// takes, kept in IndexedDB
+let db;const idb=new Promise(r=>{const q=indexedDB.open('epr-voice-1',1);q.onupgradeneeded=()=>q.result.createObjectStore('takes',{keyPath:'id'});q.onsuccess=()=>r(db=q.result)});
+const store=m=>db.transaction('takes',m).objectStore('takes');
+async function addTake(blob,dur,cues){await idb;const d=new Date(),p=n=>String(n).padStart(2,'0');
+ const id=`epr1-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+ const t={id,blob,dur,cues,script:LINES,when:d.toString(),note:'',up:false};store('readwrite').put(t).onsuccess=showTakes}
+async function showTakes(){await idb;const all=[];store('readonly').openCursor().onsuccess=e=>{const c=e.target.result;if(c){all.push(c.value);c.continue();return}
+ all.reverse();if(!all.length)return;$('takes').innerHTML='';
+ for(const t of all){const div=document.createElement('div');div.className='take';const url=URL.createObjectURL(t.blob);
+  div.innerHTML=`<b>${t.id.slice(7)}</b> <span class="small">${fmt(t.dur)} · ${(t.blob.size/1e6).toFixed(2)} MB · ${t.cues.length} cues</span>
+   ${t.blob.type.startsWith('video')?`<video controls playsinline src="${url}"></video>`:`<audio controls src="${url}"></audio>`}
+   <input placeholder="note (optional)" value="${esc(t.note||'')}"> <button class="up">⬆ Upload</button> <button class="del">✕</button>
+   <span class="st small">${t.up?'<span class=ok>uploaded ✓</span>':''}</span>`;
+  const au=div.querySelector('audio,video');au.onplay=()=>{stopPlay();playing={au,t};div.classList.add('sel');follow()};
+  au.onpause=au.onended=()=>div.classList.remove('sel');
+  div.querySelector('input').onchange=e=>{t.note=e.target.value;store('readwrite').put(t)};
+  div.querySelector('.del').onclick=()=>{if(confirm('Delete this take from the browser?'))store('readwrite').delete(t.id).onsuccess=()=>{div.remove()}};
+  div.querySelector('.up').onclick=()=>upload(t,div);$('takes').appendChild(div)}}}
+function stopPlay(){if(playing){playing.au.pause();playing=null}}
+function follow(){if(!playing||playing.au.paused)return;const s=playing.au.currentTime;let l=0;
+ for(const c of playing.t.cues)if(c.t<=s)l=c.line;if(l!==cur)go(l,false);requestAnimationFrame(follow)}
+async function upload(t,div){const st=div.querySelector('.st');st.textContent='uploading…';t.note=div.querySelector('input').value;
+ const ext=t.blob.type.includes('mp4')?(t.blob.type.startsWith('video')?'mp4':'m4a'):'webm';
+ try{let r=await fetch(`${API}/upload?k=${K}&id=${t.id}&ext=${ext}`,{method:'POST',body:t.blob});if(!r.ok)throw Error('upload '+r.status);
+  r=await fetch(`${API}/meta?k=${K}&id=${t.id}`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({id:t.id,when:t.when,duration:t.dur,mime:t.blob.type,note:t.note,cues:t.cues.map(c=>({...c,text:(t.script[c.line]||{}).text})),script:t.script})});
+  if(!r.ok)throw Error('meta '+r.status);t.up=true;store('readwrite').put(t);st.innerHTML='<span class=ok>uploaded ✓</span>';listServer()}
+ catch(e){st.innerHTML=`<span class=bad>failed (${esc(e.message)}): the take is still here, try again</span>`}}
+async function listServer(){try{let j=await (await fetch(`${API}/list?k=${K}`)).json();
+ j=j.filter(x=>x.id.startsWith('epr1-'));$('server').innerHTML=j.length?j.map(x=>`${esc(x.id)} · ${(x.bytes/1e6).toFixed(2)} MB${x.meta?` · ${fmt(x.meta.duration)}${x.meta.note?' · “'+esc(x.meta.note)+'”':''}`:''}`).join('<br>'):'nothing uploaded yet'}
+ catch(e){$('server').innerHTML='<span class=bad>server unreachable</span> (takes stay safe in this browser)'}}
+loadScript();showTakes();listServer();mics();addEventListener('resize',()=>go(cur,false));
+</script></body></html>

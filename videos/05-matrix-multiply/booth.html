@@ -1,0 +1,402 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>multiplying matrices on paper · voice-over booth</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0d0d0d;color:#ddd;font:15px/1.4 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #222;flex-wrap:wrap}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+h1 b{color:#ffd166}
+button{background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c2c}button:disabled{opacity:.4;cursor:default}
+button.rec{background:#7a1010;border-color:#c33}button.rec.on{background:#e22;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#meter{width:110px;height:8px;background:#222;border-radius:4px;overflow:hidden}#meter i{display:block;height:100%;width:0;background:#4c4}
+#clock{font:600 16px ui-monospace,monospace;min-width:60px}
+.small{font-size:12px;color:#888}
+#stage{position:relative;height:62vh;overflow:hidden;border-bottom:1px solid #222}
+#lines{position:absolute;left:0;right:0;transition:transform .35s ease}
+.ln{padding:14px 8vw;font-size:30px;line-height:1.3;color:#555;cursor:pointer;transition:color .25s,font-size .25s}
+.ln .dir{display:block;font-size:14px;color:#6a6a3a;font-style:italic;margin-bottom:2px}
+.ln.cur{color:#fff;font-size:40px}.ln.cur .dir{color:#cc4}
+.ln.done{color:#3a3a3a}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:140px;font-weight:700;background:#000a;color:#fff}
+#hint{position:absolute;bottom:8px;right:14px;font-size:12px;color:#666}
+main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:14px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{font-size:14px;margin:0 0 8px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.take{border:1px solid #2a2a2a;border-radius:8px;padding:9px 11px;margin-bottom:9px;background:#141414}
+.take.sel{border-color:#886}
+.take audio{width:100%;height:34px;margin:6px 0}
+.take input{background:#111;color:#ddd;border:1px solid #333;border-radius:5px;padding:5px 7px;width:60%}
+.ok{color:#5c5}.bad{color:#e66}
+textarea{width:100%;height:300px;background:#111;color:#ccc;border:1px solid #333;border-radius:6px;font:13px/1.45 ui-monospace,monospace;padding:8px;box-sizing:border-box}
+select{background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px}
+.ln{display:flex;align-items:center;gap:18px}.ln .tx{flex:1}
+.vth{display:flex;gap:6px;flex:none;opacity:.35;transition:opacity .25s}
+.vth figure{margin:0;position:relative}.vth canvas{display:block;width:120px;aspect-ratio:16/9;border-radius:4px;border:1px solid #333;transition:width .25s;cursor:zoom-in}
+.vth figcaption{position:absolute;left:4px;bottom:2px;font-size:10px;color:#aaa;text-shadow:0 0 3px #000;font-style:normal}
+.ln.cur .vth{opacity:1}.ln.cur .vth canvas{width:220px}
+body.nof .vth{display:none}
+#vbig{position:fixed;inset:0;background:#000d;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+#vbig canvas{width:min(92vw,160vh);aspect-ratio:16/9;border:1px solid #444}#vbig span{margin-top:8px;color:#aaa;font-size:13px}
+#camv{position:fixed;right:18px;top:100px;width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid #ffd166;display:none;z-index:5;background:#000}
+body.camon #camv{display:block}.take video{width:160px;vertical-align:middle;border-radius:6px}
+</style></head><body>
+<header>
+ <h1><b>Multiplying matrices on paper</b> · voice-over booth <span class=small>Oct-24 script · <a href="matmul-anim2.html" style="color:#888">the animation</a></span></h1>
+ <button id="rec" class="rec">● Record</button>
+ <button id="stop" disabled>■ Stop</button>
+ <span id="clock">0:00.0</span>
+ <div id="meter"><i></i></div>
+ <select id="mic" title="microphone"></select>
+ <label class="small"><input type="checkbox" id="clean"> mic cleanup (noise/echo/gain)</label>
+ <label class="small"><input type="checkbox" id="count" checked> 3-2-1</label>
+ <label class="small" title="start / middle / end of what the video shows during each line"><input type="checkbox" id="frames" checked> frames</label>
+ <label class="small" title="also record a small webcam video (shown in a corner circle while you talk)"><input type="checkbox" id="cam"> camera</label>
+</header>
+<div id="stage"><div id="lines"></div><div id="cd"></div>
+ <video id="camv" muted playsinline autoplay title="what the camera sees (mirrored here; the video is not)"></video>
+ <div id="vbig"><canvas width="1920" height="1080"></canvas><span></span></div>
+ <div id="hint" title="Record starts at the highlighted line: click a line first to start there">Space / → / click = next line · ← = back · R = record · S / Esc = stop</div></div>
+<main>
+ <section>
+  <h2>Takes <span class="small">(kept in this browser until you delete them)</span></h2>
+  <div id="takes"><div class="small">No takes yet. Press ● Record (or R), read each line, tap Space when you move to the next one.</div></div>
+  <h2 style="margin-top:18px">On the server <span class="small">(what the renderer can get)</span></h2>
+  <div id="server" class="small">…</div>
+ </section>
+ <section>
+  <h2>Script <span class="small">one spoken line per row · rows in (parentheses) are stage directions for the next line</span></h2>
+  <textarea id="script" spellcheck="false"></textarea>
+  <div style="margin-top:6px"><button id="apply">Use this script</button> <button id="reset">Reset to the matmul script</button> <span id="sst" class="small"></span></div>
+ </section>
+</main>
+<script>
+const API='https://test.bloop.monster:61920', K='<VOICE_KEY>';
+const DEFAULT=`(the trick: lots of little A·B=C’s fill the screen, each smaller)
+I don't know where I found this, and I'm not claiming I invented it. It's just an idea I want to tell more people about, because of how awesome it is.
+(title: a nice way to multiply matrices on paper · the swarm dims behind it)
+This is a nice way for humans to multiply matrices on paper.
+(the swarm zooms away · A (2×3) appears on a clean screen)
+We have our first matrix.
+(B shows up next to A, then slides up above it)
+And then, rather than drawing our next matrix next to it, we instead draw it above.
+(the empty space under B lights up: the result · then the 3×3 square note (a long beat))
+And then, this implied space is the result.
+(an arrow traces left through row 1 of A, then up through column 1 of B)
+And to calculate each cell, we need only trace our finger left to get the stuff we care about in the first matrix, and up to get the stuff we care about in the second matrix.
+(2·1 + 1·2 + 3·3 = 13 drops into the cell, then the other three fill fast (a beat))
+And then just do the regular: multiply all the elements, and sum them.
+(the swarm comes back around the finished scheme · hold a beat, then Stop)
+Happy manual matrix multiplicating!`;
+const $=id=>document.getElementById(id);
+
+// ---- video frames: the drawing code below is copied verbatim from anim.html (the page the video renders from) ----
+const VID=(()=>{const cv=Object.assign(document.createElement('canvas'),{width:1920,height:1080}), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas, no WebGL.
+const W=1920, H=1080;
+// optional on-screen credit at the end (the layout has a name: Falk's scheme, Sigurd Falk 1951). Set to false to drop it.
+const CREDIT=true;
+// ---------- the math (every number on screen is computed here) ----------
+const mm=(X,Y)=>X.map(r=>Y[0].map((_,j)=>r.reduce((s,x,k)=>s+x*Y[k][j],0)));
+const MA=[[2,1,3],[1,4,2]];            // A: 2×3
+const MB=[[1,5],[2,1],[3,2]];          // B: 3×2
+const MC=mm(MA,MB);                    // C = AB: 2×2
+const M=MA.length, N=MB.length, P=MB[0].length;
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+const SCRIPT=[
+['not claiming',"I don't know where I found this, and I'm not claiming I invented it. It's just an idea I want to tell more people about, because of how awesome it is.",0.8],
+['on paper',"This is a nice way for humans to multiply matrices on paper.",1.4],
+['we have our first',"We have our first matrix.",1.6],
+['draw it above',"And then, rather than drawing our next matrix next to it, we instead draw it above.",1.6],
+['implied space',"And then, this implied space is the result.",3.4],
+['trace our finger',"And to calculate each cell, we need only trace our finger left to get the stuff we care about in the first matrix, and up to get the stuff we care about in the second matrix.",0.6],
+['sum them',"And then just do the regular: multiply all the elements, and sum them.",2.6],
+['happy manual',"Happy manual matrix multiplicating!",4]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);      // event at fraction f of line i, d seconds long
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);                 // event f seconds after line i ends
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',a:'#4da3ff',b:'#ff9f43',ok:'#3ecf6e',ink:'#08121c'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const tw=(s,sz,wt='')=>{g.save();g.font=`${wt} ${sz}px ${FONT}`;const w=g.measureText(s).width;g.restore();return w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+// rich text: segs = [[text, color, weight]]; returns the x where each segment starts
+function rich(segs,x,y,sz,al='center',a=1){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));
+ let X=al=='center'?x-ws.reduce((p,q)=>p+q,0)/2:x;const xs=[];segs.forEach((s,i)=>{xs.push(X);txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=ws[i]});return xs.map((v,i)=>v+ws[i]/2)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function dot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.5;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// a matrix cell: lit = 0..1 tint toward col; ring = 0..1 glowing outline
+function cell(x,y,s,col,{a=1,lit=0,ring=0,dash=0,v=null,va=1,vcol=C.txt,vs=1,only=false}={}){if(a<=0)return;const p=Math.max(3,s*0.05);
+ g.save();g.globalAlpha*=a;const ga=g.globalAlpha;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);
+ if(only){}else if(dash){g.setLineDash([s*0.09,s*0.07]);g.strokeStyle=col;g.globalAlpha=ga*dash;g.lineWidth=Math.max(1.5,s*0.025);g.stroke();g.globalAlpha=ga;g.setLineDash([])}
+ else{g.fillStyle=lit>0?mix(C.panel,col.length==7?col:C.gold,0.5*lit):C.panel;g.fill();g.strokeStyle=mix('#2a3a4a',col,0.35+0.65*lit);g.lineWidth=Math.max(1.5,s*0.02);g.stroke()}
+ if(ring>0){g.globalAlpha=ga*ring;g.shadowColor=col;g.shadowBlur=s*0.25;g.strokeStyle=col;g.lineWidth=s*0.045;rr(x+p,y+p,s-2*p,s-2*p,s*0.14);g.stroke()}
+ g.restore();
+ if(v!=null&&va>0){g.save();g.translate(x+s/2,y+s/2);const k=vs;g.scale(k,k);txt(''+v,0,s*0.03,s*0.44,lit>0.5&&vcol==C.txt?'#fff':vcol,'center','bold',a*va);g.restore()}}
+// square brackets around a matrix
+function brackets(x,y,w,h,col,a=1){if(a<=0)return;const d=Math.min(22,w*0.08);g.save();g.globalAlpha*=a;g.strokeStyle=col;g.lineWidth=4;g.lineCap='round';g.lineJoin='round';
+ g.beginPath();g.moveTo(x+d-4,y-6);g.lineTo(x-4,y-6);g.lineTo(x-4,y+h+6);g.lineTo(x+d-4,y+h+6);g.moveTo(x+w-d+4,y-6);g.lineTo(x+w+4,y-6);g.lineTo(x+w+4,y+h+6);g.lineTo(x+w-d+4,y+h+6);g.stroke();g.restore()}
+// the "finger": an abstract glowing arrowhead, tip at (x,y), pointing along angle ang (a soft halo + a bright chevron)
+function finger(x,y,ang,a=1,sc=0.8,col='#fff'){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.rotate(ang);g.scale(sc,sc);
+ const h=g.createRadialGradient(-14,0,0,-14,0,46);h.addColorStop(0,col+'55');h.addColorStop(1,col+'00');g.fillStyle=h;g.beginPath();g.arc(-14,0,46,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=22;g.fillStyle=mix(col,'#ffffff',0.55);
+ g.beginPath();g.moveTo(0,0);g.lineTo(-40,-24);g.lineTo(-30,0);g.lineTo(-40,24);g.closePath();g.fill();
+ g.restore()}
+// ---------- the cool animation of the trick: lots of little A·B=C's, each smaller than the last, packing into the empty space ----------
+function rngS(seed){let s=seed%2147483647||1;return()=>(s=(s*16807)%2147483647)/2147483647}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+const swCache={};
+// keep: boxes to stay out of; dt0/dec: first gap between arrivals and how fast the gaps shrink
+function swarm(key,seed,keep,dt0,dec,s0=84){if(swCache[key])return swCache[key];const r=rngS(seed),R=(h,w)=>[...Array(h)].map(()=>[...Array(w)].map(()=>r()<0.12?0:1+Math.floor(r()*4)));
+ const out=[],boxes=keep.map(b=>b.slice());let t=0,s=s0;
+ for(let k=0;k<400&&s>=10;k++,s*=0.982){let m=1+Math.floor(r()*3),n=1+Math.floor(r()*3),p=1+Math.floor(r()*3);if(k==0&&key=='in'){m=2;n=3;p=2}
+  const gb=Math.max(3,s*0.22),w=(n+p)*s+gb,h=(n+m)*s+gb,pad=Math.max(7,s*0.3);let ok=null;
+  for(let tr=0;tr<300&&!ok;tr++){const c0=k==0&&tr==0&&key=='in',x=c0?W/2-w/2:20+r()*(W-40-w),y=c0?H/2-h/2+40:20+r()*(H-40-h);
+   if(boxes.every(([x1,y1,x2,y2])=>x+w+pad<x1||x>x2+pad||y+h+pad<y1||y>y2+pad))ok=[x,y]}
+  if(!ok)continue;
+  const A=R(m,n),B=R(n,p);out.push({t,x:ok[0],y:ok[1],w,h,s,gb,m,n,p,A,B,Cm:mm(A,B),sp:lerp(1,1.7,1-s/s0),per:5+r()*5,ph:r()});
+  boxes.push([ok[0],ok[1],ok[0]+w,ok[1]+h]);t+=Math.max(0.07,dt0*Math.pow(dec,out.length))}
+ return swCache[key]=out}
+// one little A·B=C, q seconds after it arrived: A pops in, B pops in next to it and slides up, then each cell of C traces left and up and fills
+function mini(e,q,a){if(a<=0||q<0)return;const{x,y,s,gb,m,n,p,A,B,Cm}=e;q*=e.sp;
+ const ax=c=>x+c*s, ay=r=>y+n*s+gb+r*s, bx=c=>x+n*s+gb+c*s, by=r=>y+r*s;
+ const nC=m*p, c0=1.0, cd=0.3, fin=c0+nC*cd+0.4, cyc=q>fin+e.ph*e.per?(q-fin-e.ph*e.per)%e.per:-9;
+ const aIn=eo(q/0.28), bIn=eo((q-0.22)/0.28), up=ease((q-0.5)/0.4), cIn=ease((q-0.85)/0.2);
+ const dy=(ay(0)+m*s/2-n*s/2-y)*(1-up);
+ const U=k=>{const u1=q-c0-k*cd,u2=cyc-k*cd;return u1>=0&&u1<0.6?u1:u2>=0&&u2<0.6?u2:-1};      // a cell's tracer clock
+ const bri=u=>u<0?0:cl(u/0.08)*(1-cl((u-0.35)/0.2));
+ const lA=[...Array(m)].map(()=>Array(n).fill(0)), lB=[...Array(n)].map(()=>Array(p).fill(0));
+ for(let i=0;i<m;i++)for(let j=0;j<p;j++){const b=bri(U(i*p+j));for(let c=0;c<n;c++){lA[i][c]=Math.max(lA[i][c],b);lB[c][j]=Math.max(lB[c][j],b)}}
+ g.save();g.globalAlpha*=a*lerp(1,0.62,ease((q-fin)/1.2));const big=s>=22;
+ if(big){brackets(ax(0),ay(0),n*s,m*s,C.a,0.5*aIn);brackets(bx(0),by(0)+dy,p*s,n*s,C.b,0.5*bIn);brackets(bx(0),ay(0),p*s,m*s,C.gold,0.5*cIn)}
+ A.forEach((row,r)=>row.forEach((v,c)=>cell(ax(c),ay(r),s,C.a,{a:aIn,lit:lA[r][c],v,vs:0.6+0.4*aIn})));
+ B.forEach((row,r)=>row.forEach((v,c)=>cell(bx(c),by(r)+dy,s,C.b,{a:bIn,lit:lB[r][c],v,vs:0.6+0.4*bIn})));
+ for(let i=0;i<m;i++)for(let j=0;j<p;j++){const k=i*p+j, nv=ease((q-c0-k*cd-0.2)/0.15), b=bri(U(k));
+  if(nv<1)cell(bx(j),ay(i),s,C.gold,{a:cIn*(1-nv),dash:1});
+  if(nv>0)cell(bx(j),ay(i),s,C.gold,{a:nv,ring:big?b:0,lit:b*0.6,v:Cm[i][j],vcol:C.gold,vs:0.8+0.2*nv});
+  const u=U(k);if(u>=0){const pr=eo(u/0.25),f=1-cl((u-0.35)/0.2),cx=bx(j)+s/2,cy=ay(i)+s/2,lx=lerp(cx,ax(0)+s*0.3,pr),ly=lerp(cy,by(0)+s*0.3,pr);
+   g.save();g.globalAlpha*=f;if(big){g.shadowColor='#fff';g.shadowBlur=10}g.strokeStyle='#ffffffd0';g.lineWidth=Math.max(1.5,s*0.045);g.lineCap='round';
+   g.beginPath();g.moveTo(cx,cy);g.lineTo(lx,cy);g.moveTo(cx,cy);g.lineTo(cx,ly);g.stroke();g.restore();
+   if(big){glowDot(lx,cy,s*0.08,'#fff',f);glowDot(cx,ly,s*0.08,'#fff',f)}}}
+ g.restore()}
+const hits=(e,[x1,y1,x2,y2])=>!(e.x+e.w<x1||e.x>x2||e.y+e.h<y1||e.y>y2);
+function swarmDraw(list,t0,a,dimBox,dimK){if(a<=0)return;for(const e of list){const q=tt-t0-e.t;if(q<0)break;mini(e,q,a*(dimK>0&&hits(e,dimBox)?1-0.88*dimK:1))}}
+// ---------- the main example: Falk's layout. A bottom-left, B above-right, C = AB in the space under B and right of A ----------
+const CS=120, GB=28, SW=N*CS+GB+P*CS, X0=W/2-SW/2-40, Y0=200;
+const AX=c=>X0+c*CS, AY=r=>Y0+N*CS+GB+r*CS;          // A's cells (and C's rows)
+const BX=c=>X0+N*CS+GB+c*CS, BY=r=>Y0+r*CS;          // B's cells (and C's columns)
+const CX=BX, CY=AY;
+const MAINBOX=[X0-110,Y0-20,X0+SW+200,Y0+(N+M)*CS+GB+20];
+const SW1=swarm('in',20261024,[FACE],1.4,0.93,96), SW2=swarm('out',777,[FACE,MAINBOX,[W/2-430,20,W/2+430,165],[W/2-520,915,W/2+440,985]],0.3,0.93,60);
+// the layout itself does the work: for result cell (i,j), the cells to its LEFT that belong to A, and ABOVE it that belong to B, paired in order
+function layoutTerms(i,j){const lefts=MA[i].map((v,c)=>({v,x:AX(c),y:AY(i)})).filter(q=>q.y==CY(i)&&q.x<CX(j)).sort((p,q)=>p.x-q.x);
+ const ups=MB.map((r,k)=>({v:r[j],x:BX(j),y:BY(k)})).filter(q=>q.x==CX(j)&&q.y<CY(i)).sort((p,q)=>p.y-q.y);
+ return lefts.map((q,k)=>[q.v,ups[k].v])}
+const ORDER=[[0,0],[0,1],[1,0],[1,1]];
+const EQY=948;
+function scMain(){
+ const l2=LK('we have our first'),l3=LK('draw it above'),l4=LK('implied space'),l5=LK('trace our finger'),l6=LK('sum them'),l7=LK('happy manual');
+ const D5=E[l5]-S[l5], D6=E[l6]-S[l6];
+ // timing of the worked cell (0,0) and the quick ones
+ const pL=eo((tt-at(l5,0.27))/(0.2*D5)), pU=eo((tt-at(l5,0.61))/(0.2*D5));
+ // the dot product is glossed: one equation, all at once, then the 13 drops in and the other cells fill fast
+ const eqA=ev(l6,0.3,0.5), fly=eo((tt-at(l6,0.78))/0.6);
+ const Q0=Math.max(E[l6]+0.3,at(l6,0.78)+0.9), QS=0.55, qs=c=>Q0+(c-1)*QS;   // quick cells 1..3 start
+ const done=c=>c==0?ease((fly-0.85)/0.15):ease((tt-qs(c)-0.3)/0.2);
+ const fade0=1-ease((tt-Q0+0.2)/0.4);                                  // the worked cell's highlights go away
+ const out7=1-ev(l7,0,0.6);
+ // highlights: lit[A/B r,c], ring[C i,j]
+ const litA=(r,c)=>{let l=0;if(r==0){const fx=lerp(CX(0)+CS/2,AX(0)+CS*0.35,pL);l=Math.max(l,cl((AX(c)+CS*0.8-fx)/50)*(pL>0?1:0)*fade0)}
+  for(let q=1;q<4;q++){const[i]=ORDER[q], k=ease((tt-qs(q))/0.12)*(1-ease((tt-qs(q)-0.45)/0.2));if(i==r)l=Math.max(l,k)}return l};
+ const litB=(r,c)=>{let l=0;if(c==0){const fy=lerp(CY(0)+CS/2,BY(0)+CS*0.35,pU);l=Math.max(l,cl((BY(r)+CS*0.8-fy)/50)*(pU>0?1:0)*fade0)}
+  for(let q=1;q<4;q++){const[,j]=ORDER[q], k=ease((tt-qs(q))/0.12)*(1-ease((tt-qs(q)-0.45)/0.2));if(j==c)l=Math.max(l,k)}return l};
+ const ringC=(i,j)=>{const q=ORDER.findIndex(o=>o[0]==i&&o[1]==j);
+  if(q==0)return ev(l5,0.06,0.4)*(1-ease((tt-at(l6,0.78)-0.6)/0.5));
+  return ease((tt-qs(q))/0.12)*(1-ease((tt-qs(q)-0.5)/0.25))};
+ // the quick cells: a line of light left and up from the cell, like in the swarm
+ for(let q=1;q<4;q++){const[i,j]=ORDER[q],u=tt-qs(q);if(u<0||u>0.7)continue;const pr=eo(u/0.25),f=1-cl((u-0.45)/0.25),cx=CX(j)+CS/2,cy=CY(i)+CS/2,lx=lerp(cx,AX(0)+CS*0.3,pr),ly=lerp(cy,BY(0)+CS*0.3,pr);
+  g.save();g.globalAlpha*=f;g.shadowColor='#fff';g.shadowBlur=16;g.strokeStyle='#ffffffd0';g.lineWidth=5;g.lineCap='round';g.beginPath();g.moveTo(cx,cy);g.lineTo(lx,cy);g.moveTo(cx,cy);g.lineTo(cx,ly);g.stroke();g.restore();
+  glowDot(lx,cy,9,'#fff',f);glowDot(cx,ly,9,'#fff',f)}
+ // A
+ const aIn=(r,c)=>ev(l2,0.1+0.07*(r*N+c),0.35);
+ brackets(AX(0),AY(0),N*CS,M*CS,C.a,ev(l2,0,0.5));
+ MA.forEach((row,r)=>row.forEach((v,c)=>cell(AX(c),AY(r),CS,C.a,{a:aIn(r,c),lit:litA(r,c),v,vs:0.7+0.3*eo(aIn(r,c)*1.4)})));
+ const la=ev(l2,0.5,0.6);
+ txt('A',AX(0)-58,AY(0)+M*CS/2-16,64,C.a,'center','bold',la);txt(`${M} × ${N}`,AX(0)-58,AY(0)+M*CS/2+34,26,C.dim,'center','',la);
+ // B: first drawn next to A (where you'd normally write it), then it slides up
+ const bIn=(r,c)=>ev(l3,0.12+0.05*(r*P+c),0.35), up=ev(l3,0.62,1.1);
+ const yNext=AY(0)+M*CS/2-N*CS/2+8, dy=lerp(yNext-Y0,0,up);
+ brackets(BX(0),BY(0)+dy,P*CS,N*CS,C.b,ev(l3,0.1,0.5));
+ MB.forEach((row,r)=>row.forEach((v,c)=>cell(BX(c),BY(r)+dy,CS,C.b,{a:bIn(r,c),lit:litB(r,c),v,vs:0.7+0.3*eo(bIn(r,c)*1.4)})));
+ const nx=ev(l3,0.3,0.5)*(1-ev(l3,0.6,0.4));
+ txt('next to it?',BX(0)+P*CS/2,yNext-48,36,C.dim,'center','',nx);
+ const lb=ev(l3,0.8,0.6);
+ txt('B',BX(P)+62,BY(0)+N*CS/2-16,64,C.b,'center','bold',lb);txt(`${N} × ${P}`,BX(P)+62,BY(0)+N*CS/2+34,26,C.dim,'center','',lb);
+ txt('above it  (and to the right)',BX(0)+P*CS/2,Y0-52,34,C.b,'center','',lb*(1-ev(l4,0,0.5)));
+ // C: the implied space
+ const cIn=ev(l4,0.2,0.7), pulse=(cIn>0?0.5+0.5*Math.sin((tt-at(l4,0.2))*5):0)*(1-ev(l5,0,0.6));
+ for(let i=0;i<M;i++)for(let j=0;j<P;j++){const q=ORDER.findIndex(o=>o[0]==i&&o[1]==j), dn=done(q);
+  if(dn<1)cell(CX(j),CY(i),CS,C.gold,{a:cIn*(1-dn),dash:0.5+0.5*pulse});
+  const r=ringC(i,j);
+  if(dn>0||r>0)cell(CX(j),CY(i),CS,C.gold,{a:Math.max(dn,r),ring:Math.max(r,dn*(1-cl((tt-(q?qs(q)+0.55:at(l6,0.78)+0.8))/0.5))),lit:0,v:dn>0?MC[i][j]:null,va:dn,vcol:C.gold,vs:0.8+0.2*eo(dn)})}
+ brackets(CX(0),CY(0),P*CS,M*CS,C.gold,cIn);
+ txt('the result',CX(P)+125,CY(0)+M*CS/2-34,36,C.gold,'center','bold',ev(l4,0.5,0.6)*(1-ev(l5,0,0.5)));
+ const lc=ev(l4,0.5,0.6);
+ txt('A·B',CX(P)+80,CY(0)+M*CS/2+(lc>0?lerp(18,-16,ev(l5,0,0.5)):0),ev(l5,0,0.5)>0.5?64:52,C.gold,'center','bold',lc);
+ txt(`${M} × ${P}`,CX(P)+80,CY(0)+M*CS/2+40,26,C.dim,'center','',ev(l5,0,0.5));
+ // the free bonus: the shapes check themselves (shown in the hold after "implied space")
+ const sk=after(l4,0.1,0.6)*(1-ev(l5,0.03,0.5));
+ if(sk>0){g.save();g.globalAlpha=sk*0.8;g.setLineDash([10,9]);g.strokeStyle=C.dim;g.lineWidth=2.5;rr(AX(0)+8,BY(0)+8,N*CS-16,N*CS-16,18);g.stroke();g.restore();
+  txt(`${N} × ${N}`,AX(0)+N*CS/2,BY(0)+N*CS/2-60,48,C.txt,'center','bold',sk);
+  txt('a square: A’s width',AX(0)+N*CS/2,BY(0)+N*CS/2+10,28,C.dim,'center','',sk);
+  txt('= B’s height',AX(0)+N*CS/2,BY(0)+N*CS/2+48,28,C.dim,'center','',sk);
+  txt('rows from A, columns from B',CX(0)+P*CS/2,EQY,34,C.dim,'center','',sk)}
+ // the finger: left through A's row, then up through B's column
+ const fa1=ev(l5,0.22,0.3)*(1-ease((tt-at(l5,0.27)-0.2*D5-0.2)/0.3)), fa2=ev(l5,0.56,0.3)*(1-ease((tt-at(l5,0.61)-0.2*D5-0.25)/0.3));
+ const fx=lerp(CX(0)+CS*0.62,AX(0)-CS*0.2,pL), fy=lerp(CY(0)+CS*0.38,BY(0)-CS*0.2,pU);
+ const trail=(x1,y1,x2,y2,col,a)=>{if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=18;g.strokeStyle=col;g.lineWidth=7;g.lineCap='round';g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.restore()};
+ trail(CX(0)+CS/2,CY(0)+CS/2,lerp(CX(0)+CS/2,AX(0)+CS*0.3,pL),CY(0)+CS/2,C.a,(pL>0?0.8:0)*fade0*(1-eqA*0.7));
+ trail(CX(0)+CS/2,CY(0)+CS/2,CX(0)+CS/2,lerp(CY(0)+CS/2,BY(0)+CS*0.3,pU),C.b,(pU>0?0.8:0)*fade0*(1-eqA*0.7));
+ finger(fx,CY(0)+CS/2,Math.PI,fa1,0.8,C.a);
+ finger(CX(0)+CS/2,fy,-Math.PI/2,fa2,0.8,C.b);
+ // the strip under the scheme: which row/column, then the multiply-and-sum
+ const rs=ev(l5,0.45,0.5)*(1-eqA);
+ rich([['row 1 of A',C.a,'bold'],['   ·   ',C.dim],['column 1 of B',C.b,'bold']],CX(0)-40,EQY,38,'center',rs*ev(l5,0.45,0.5));
+ if(eqA>0&&fade0>0){const segs=glossSegs(0,0), xs=richMeasure(segs,CX(0)-40,42);
+  segs.forEach((s,k)=>txt(s[0],xs[k],EQY,42,s[1],'center',s[2]||'',eqA*fade0*(k==segs.length-1?1-ease(fly*3):1)));
+  if(fly>0&&fly<1){const x=lerp(xs[segs.length-1],CX(0)+CS/2,fly), y=lerp(EQY,CY(0)+CS/2,fly)-Math.sin(Math.PI*fly)*90;txt(''+MC[0][0],x,y,lerp(42,53,fly),C.gold,'center','bold',1)}}}
+function glossSegs(i,j){const segs=[];layoutTerms(i,j).forEach(([x,y],k)=>{if(k)segs.push([' + ',C.dim]);segs.push([''+x,C.a,'bold'],['·',C.dim],[''+y,C.b,'bold'])});
+ segs.push(['  =  ',C.dim],[''+MC[i][j],C.gold,'bold']);return segs}
+function richMeasure(segs,x,sz){const ws=segs.map(s=>tw(s[0],sz,s[2]||''));let X=x-ws.reduce((p,q)=>p+q,0)/2;return ws.map(w=>{const c=X+w/2;X+=w;return c})}
+function scIntro(){const l1=LK('on paper');
+ const k=ev(l1,0.05,0.7);
+ txt('a nice way to multiply matrices',W/2,92,62,C.txt,'center','bold',k);
+ txt('on paper',W/2,162,48,C.gold,'center','bold',ev(l1,0.55,0.6))}
+function scEnd(){const l7=LK('happy manual'), k=ev(l7,0,0.6);
+ txt('happy manual',W/2,64,58,C.gold,'center','bold',k);
+ txt('matrix multiplicating!',W/2,126,58,C.gold,'center','bold',ev(l7,0.3,0.6));
+ if(CREDIT){const c=after(l7,0.4,0.8);
+  rich([['this layout is known as ',C.dim],['Falk’s scheme',C.txt,'bold'],['  (Sigurd Falk, 1951)',C.dim]],W/2-40,EQY,32,'center',c)}}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ // the trick: a swarm of little A·B=C's under the intro; gone during the real explanation; back around the finished example at the end
+ const l1=LK('on paper'), l2=LK('we have our first'), l7=LK('happy manual');
+ const dive=ev(l2,0,0.9);
+ if(dive<1){g.save();const z=1+0.35*dive;g.translate(W/2,H/2);g.scale(z,z);g.translate(-W/2,-H/2);
+  swarmDraw(SW1,0.2,1-dive,[W/2-520,40,W/2+520,200],ev(l1,0,0.7));g.restore()}
+ if(tt>S[l7])swarmDraw(SW2,S[l7]+0.2,0.85,null,0);
+ g.save();g.globalAlpha=1-ev(l2,0,0.6);scIntro();g.restore();
+ if(t>S[l2]-1)scMain();
+ scEnd();
+ return cv}
+// the booth's frames per line: [key, [start, middle, end anim times]]
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+
+return {frame:drawFrame,VK};})();
+function vspan(text){const s=text.toLowerCase().replace(/’/g,"'"); const k=VID.VK.find(k=>s.includes(k[0])); if(!k)return null;
+ return k[1].map((t,i)=>[t,['start','middle','end'][i]])}
+let vjob=0;
+function paintFrames(){const job=++vjob, q=[...document.querySelectorAll('canvas.vf')];
+ const step=()=>{if(job!==vjob||!q.length)return; const c=q.shift(), g=c.getContext('2d'); g.imageSmoothingQuality='high';
+  g.drawImage(VID.frame(+c.dataset.t),0,0,c.width,c.height); setTimeout(step,0)}; step()}
+function zoomFrame(t,lab){const o=$('vbig'); o.style.display='flex'; const c=o.querySelector('canvas'), g=c.getContext('2d');
+ g.imageSmoothingQuality='high'; g.drawImage(VID.frame(t),0,0,c.width,c.height); o.querySelector('span').textContent=lab+' · anim t = '+t.toFixed(1)+' s'}
+$('vbig').onclick=()=>$('vbig').style.display='none';
+$('cam').checked=localStorage.getItem('mm1-cam')==='on';document.body.classList.toggle('camon',$('cam').checked);
+$('cam').onchange=async e=>{localStorage.setItem('mm1-cam',e.target.checked?'on':'off');document.body.classList.toggle('camon',e.target.checked);
+ if(rec&&rec.state==='recording')return;
+ if(e.target.checked||stream){try{await openMic()}catch(err){alert('Camera blocked: '+err.message);e.target.checked=false;document.body.classList.remove('camon')}}};
+if($('cam').checked)setTimeout(()=>openMic().catch(()=>{}),0);
+$('frames').checked=localStorage.getItem('mm1-frames')!=='off';document.body.classList.toggle('nof',!$('frames').checked);
+$('frames').onchange=e=>{localStorage.setItem('mm1-frames',e.target.checked?'on':'off');document.body.classList.toggle('nof',!e.target.checked);go(cur,false)};
+let LINES=[], cur=0, rec=null, chunks=[], t0=0, cues=[], stream=null, an=null, playing=null, tick=null;
+function parse(txt){const out=[];let dir=[];for(let r of txt.split('\n')){r=r.trim();if(!r)continue;
+ if(/^\(.*\)$/.test(r)){dir.push(r.slice(1,-1));continue}out.push({text:r,dir:dir.join(' · ')});dir=[]}return out}
+function render(){$('lines').innerHTML=LINES.map((l,i)=>{const v=vspan(l.text);return `<div class="ln" data-i="${i}"><div class="tx">${l.dir?`<span class="dir">${esc(l.dir)}</span>`:''}${esc(l.text)}</div>${v?`<div class="vth">${v.map(([t,n])=>`<figure><canvas class="vf" width="384" height="216" data-t="${t}" data-n="${n}"></canvas><figcaption>${n}</figcaption></figure>`).join('')}</div>`:''}</div>`}).join('');
+ [...document.querySelectorAll('canvas.vf')].forEach(c=>c.onclick=e=>{e.stopPropagation();zoomFrame(+c.dataset.t,c.dataset.n)});paintFrames();
+ [...document.querySelectorAll('.ln')].forEach(e=>e.onclick=()=>go(+e.dataset.i));go(0)}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+function go(i,log=true){cur=Math.max(0,Math.min(LINES.length-1,i));
+ document.querySelectorAll('.ln').forEach((e,j)=>{e.classList.toggle('cur',j==cur);e.classList.toggle('done',j<cur)});
+ const e=document.querySelector(`.ln[data-i="${cur}"]`);if(!e)return;
+ const H=$('stage').clientHeight;$('lines').style.transform=`translateY(${H*0.38-e.offsetTop}px)`;
+ if(log&&rec&&rec.state==='recording')cues.push({t:+(now()).toFixed(2),line:cur})}
+const now=()=>(performance.now()-t0)/1000;
+const fmt=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+function loadScript(){const s=localStorage.getItem('mm1-script');$('script').value=s||DEFAULT;LINES=parse($('script').value);render()}
+$('apply').onclick=()=>{localStorage.setItem('mm1-script',$('script').value);LINES=parse($('script').value);render();$('sst').textContent='using '+LINES.length+' lines'};
+$('reset').onclick=()=>{localStorage.removeItem('mm1-script');loadScript();$('sst').textContent='reset'};
+// mic
+async function mics(){try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind=='audioinput');
+ const v=$('mic').value;$('mic').innerHTML=d.map(x=>`<option value="${x.deviceId}">${esc(x.label||'microphone')}</option>`).join('');if(v)$('mic').value=v}catch(e){}}
+async function openMic(){if(stream)stream.getTracks().forEach(t=>t.stop());const c=$('clean').checked;
+ stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('mic').value?{exact:$('mic').value}:undefined,echoCancellation:c,noiseSuppression:c,autoGainControl:c,channelCount:1},
+  video:$('cam').checked?{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30},facingMode:'user'}:false});
+ $('camv').srcObject=$('cam').checked?stream:null;
+ mics();const ac=new AudioContext(),src=ac.createMediaStreamSource(stream);an=ac.createAnalyser();an.fftSize=1024;src.connect(an)}
+function meter(){if(an){const a=new Float32Array(an.fftSize);an.getFloatTimeDomainData(a);let m=0;for(const x of a)m=Math.max(m,Math.abs(x));
+ const i=$('meter').firstChild;i.style.width=Math.min(100,m*110)+'%';i.style.background=m>.95?'#e33':m>.6?'#cc4':'#4c4'}requestAnimationFrame(meter)}meter();
+$('mic').onchange=$('clean').onchange=()=>{if(stream)openMic()};
+async function startRec(){if(rec&&rec.state==='recording')return;stopPlay();
+ try{await openMic()}catch(e){alert('Microphone blocked: '+e.message);return}
+ const from=cur;go(from,false);
+ if($('count').checked){const cd=$('cd');cd.style.display='flex';for(const n of[3,2,1]){cd.textContent=n;await new Promise(r=>setTimeout(r,700))}cd.style.display='none'}
+ const vid=stream.getVideoTracks().length>0;
+ const mt=(vid?['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/mp4','video/webm']:['audio/webm;codecs=opus','audio/mp4','audio/webm']).find(m=>MediaRecorder.isTypeSupported(m));
+ rec=new MediaRecorder(stream,{mimeType:mt,audioBitsPerSecond:160000,...(vid?{videoBitsPerSecond:1200000}:{})});chunks=[];cues=[{t:0,line:from}];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});addTake(blob,now(),cues.slice())};
+ t0=performance.now();rec.start(1000);$('rec').classList.add('on');$('rec').disabled=true;$('stop').disabled=false;
+ tick=setInterval(()=>$('clock').textContent=fmt(now()),100)}
+function stopRec(){if(!rec||rec.state!=='recording')return;rec.stop();clearInterval(tick);$('rec').classList.remove('on');$('rec').disabled=false;$('stop').disabled=true}
+$('rec').onclick=startRec;$('stop').onclick=stopRec;
+addEventListener('keydown',e=>{if(e.target.tagName=='TEXTAREA'||e.target.tagName=='INPUT')return;
+ if($('vbig').style.display=='flex'&&e.key=='Escape'){$('vbig').style.display='none';return}
+ if(e.key==' '||e.key=='ArrowRight'||e.key=='ArrowDown'){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'||e.key=='ArrowUp'){e.preventDefault();go(cur-1)}
+ else if(e.key=='r'||e.key=='R')startRec();else if(e.key=='s'||e.key=='S'||e.key=='Escape')stopRec()});
+// takes, kept in IndexedDB
+let db;const idb=new Promise(r=>{const q=indexedDB.open('mm-voice-1',1);q.onupgradeneeded=()=>q.result.createObjectStore('takes',{keyPath:'id'});q.onsuccess=()=>r(db=q.result)});
+const store=m=>db.transaction('takes',m).objectStore('takes');
+async function addTake(blob,dur,cues){await idb;const d=new Date(),p=n=>String(n).padStart(2,'0');
+ const id=`mm1-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+ const t={id,blob,dur,cues,script:LINES,when:d.toString(),note:'',up:false};store('readwrite').put(t).onsuccess=showTakes}
+async function showTakes(){await idb;const all=[];store('readonly').openCursor().onsuccess=e=>{const c=e.target.result;if(c){all.push(c.value);c.continue();return}
+ all.reverse();if(!all.length)return;$('takes').innerHTML='';
+ for(const t of all){const div=document.createElement('div');div.className='take';const url=URL.createObjectURL(t.blob);
+  div.innerHTML=`<b>${t.id.slice(7)}</b> <span class="small">${fmt(t.dur)} · ${(t.blob.size/1e6).toFixed(2)} MB · ${t.cues.length} cues</span>
+   ${t.blob.type.startsWith('video')?`<video controls playsinline src="${url}"></video>`:`<audio controls src="${url}"></audio>`}
+   <input placeholder="note (optional)" value="${esc(t.note||'')}"> <button class="up">⬆ Upload</button> <button class="del">✕</button>
+   <span class="st small">${t.up?'<span class=ok>uploaded ✓</span>':''}</span>`;
+  const au=div.querySelector('audio,video');au.onplay=()=>{stopPlay();playing={au,t};div.classList.add('sel');follow()};
+  au.onpause=au.onended=()=>div.classList.remove('sel');
+  div.querySelector('input').onchange=e=>{t.note=e.target.value;store('readwrite').put(t)};
+  div.querySelector('.del').onclick=()=>{if(confirm('Delete this take from the browser?'))store('readwrite').delete(t.id).onsuccess=()=>{div.remove()}};
+  div.querySelector('.up').onclick=()=>upload(t,div);$('takes').appendChild(div)}}}
+function stopPlay(){if(playing){playing.au.pause();playing=null}}
+function follow(){if(!playing||playing.au.paused)return;const s=playing.au.currentTime;let l=0;
+ for(const c of playing.t.cues)if(c.t<=s)l=c.line;if(l!==cur)go(l,false);requestAnimationFrame(follow)}
+async function upload(t,div){const st=div.querySelector('.st');st.textContent='uploading…';t.note=div.querySelector('input').value;
+ const ext=t.blob.type.includes('mp4')?(t.blob.type.startsWith('video')?'mp4':'m4a'):'webm';
+ try{let r=await fetch(`${API}/upload?k=${K}&id=${t.id}&ext=${ext}`,{method:'POST',body:t.blob});if(!r.ok)throw Error('upload '+r.status);
+  r=await fetch(`${API}/meta?k=${K}&id=${t.id}`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({id:t.id,when:t.when,duration:t.dur,mime:t.blob.type,note:t.note,cues:t.cues.map(c=>({...c,text:(t.script[c.line]||{}).text})),script:t.script})});
+  if(!r.ok)throw Error('meta '+r.status);t.up=true;store('readwrite').put(t);st.innerHTML='<span class=ok>uploaded ✓</span>';listServer()}
+ catch(e){st.innerHTML=`<span class=bad>failed (${esc(e.message)}): the take is still here, try again</span>`}}
+async function listServer(){try{let j=await (await fetch(`${API}/list?k=${K}`)).json();
+ j=j.filter(x=>x.id.startsWith('mm1-'));$('server').innerHTML=j.length?j.map(x=>`${esc(x.id)} · ${(x.bytes/1e6).toFixed(2)} MB${x.meta?` · ${fmt(x.meta.duration)}${x.meta.note?' · “'+esc(x.meta.note)+'”':''}`:''}`).join('<br>'):'nothing uploaded yet'}
+ catch(e){$('server').innerHTML='<span class=bad>server unreachable</span> (takes stay safe in this browser)'}}
+loadScript();showTakes();listServer();mics();addEventListener('resize',()=>go(cur,false));
+</script></body></html>

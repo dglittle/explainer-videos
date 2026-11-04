@@ -1,0 +1,11 @@
+the human voice and face you see are real, and the idea for this video is his: a follow-on to "the Turing machine of quantum computation". but.. the wording of the script (which he read and approved), the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the idea: quantum computations are usually drawn as circuit diagrams, one horizontal line per qubit, with gates where the qubits interact. but any diagram converts mechanically into a vector times a matrix. 3 wires means 2³ = 8 states. each gate has a little matrix (2×2 on one wire, 4×4 on two). to make the big 8×8 matrix, copy the little one in once for each setting of the wires the gate doesn't touch (math name: the tensor product, e.g. H ⊗ I ⊗ I). then multiply the vector by each gate's matrix, left to right, or multiply the matrices together first.
+
+the example: H on the top wire, then two CNOTs: 000 → (000 + 111)/√2. writing the vector as a row, the matrices even come in the same order as the gates in the diagram (with column vectors it's backwards).
+
+every number on screen is computed by the page that draws it, and checked: each big matrix equals the tensor product, every matrix is unitary, and one big matrix gives the same result.
+
+previous video: https://youtu.be/D7K6TvOLo7g
+
+v0.1. still an attempt, to be improved upon.

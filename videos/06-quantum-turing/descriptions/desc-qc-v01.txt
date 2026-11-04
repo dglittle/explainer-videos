@@ -1,0 +1,11 @@
+the human voice and face you see are real, and the explanation is his: his way of understanding quantum computation, for someone who already knows regular computation. but.. the animation, the code that draws every frame, a couple of suggested lines, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the idea: take a Turing machine with a finite tape of 3 cells. list all 2³ = 8 states the tape could be in. the current state is a vector of 8 numbers, all 0 except a single 1. one step of computation is that vector times a giant square matrix (here the vector is a row, and the matrix "adds 1", a binary counter: 011 → 100 → 101).
+
+to make it quantum: let the vector be any vector of length 1 (the sum of |aᵢ|² is 1, with |z|² = z·z̄ for complex numbers), and only allow matrices that keep the length 1 for every input. those are the unitary matrices (U†U = I). they can always be undone, so a classical step has to be reversible: a permutation. any computation can be made reversible with some extra scratch tape (Bennett, 1973). at the end, when you look, you see each state with probability |aᵢ|².
+
+every number on screen is computed by the page that draws it, and checked: the classical matrix is a permutation, U (a product of 4 small gates) is unitary, and every vector shown has length 1.
+
+related: Scott Aaronson's view of quantum mechanics as probability theory with the 2-norm (and complex numbers), in Quantum Computing Since Democritus, ch. 9. quantum Turing machines: Deutsch (1985), Bernstein & Vazirani (1993).
+
+v0.1. still an attempt, to be improved upon.

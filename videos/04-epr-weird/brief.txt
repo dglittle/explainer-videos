@@ -6,7 +6,7 @@ Lessons from last time:
 - Get the physics/math exactly right first and have the page compute what it shows; check it headlessly.
 - Look at a frame per line (tools/shots.js) and fix overlaps before publishing.
 - Publish anim + booth (kbt write into docs/<shelf>/, then personal-reports-push.sh), then STOP and give Greg the booth link so he can record lines first. Render only after he uploads a take (check ~/greg-voice/takes; if it isn't there, it's still in his browser: tell him to press ⬆ Upload).
-- render.js renders fine on this box (~11 min); MP4 goes to S3 with content-type video/mp4. YouTube only when Greg says so (Mac: ~/pima/work/youtube-upload; if `invalid_grant`, run auth.js there and Greg clicks the tab).
+- render.js renders fine on this box (~11 min); MP4 goes to S3 with content-type video/mp4. YouTube only when Greg says so (Mac: ~/youtube-upload; if `invalid_grant`, run auth.js there and Greg clicks the tab).
 
 Greg's request, verbatim:
 

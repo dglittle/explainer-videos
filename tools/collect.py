@@ -7,7 +7,7 @@ must not be public: renders, check frames, node_modules, voice/webcam recordings
 Scrubs: Greg's private shelf key, the voice-booth upload key, Mac user paths.
 
 usage (on the box): python3 tools/collect.py MAC_KITS_DIR YT_TOOLS_DIR
-  MAC_KITS_DIR = a copy of mac:~/airport-sessions/*-render without media; YT_TOOLS_DIR = a copy of mac:~/pima/work/youtube-upload/*.js|txt|md
+  MAC_KITS_DIR = a copy of mac:~/airport-sessions/*-render without media; YT_TOOLS_DIR = a copy of mac:~/youtube-upload/*.js|txt|md
 """
 import os, re, shutil, sys, json
 

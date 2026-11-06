@@ -51,7 +51,7 @@ Process (lessons):
 - Don't upload until Greg says so. When he says "publish":
   - S3, with content-type video/mp4: export the AWS keys with `~/bin/sops -d --extract '["AWS_ACCESS_KEY_ID"]' ~/kb/personal/secrets/aws.yaml`
     (and SECRET), then `aws s3api put-object --bucket bloop.monster --key <shelf>/<name>.mp4 --body <f> --content-type video/mp4 --cache-control no-cache`.
-  - YouTube on the Mac: `cd ~/pima/work/youtube-upload && ~/.nvm/versions/node/v22.13.1/bin/node upload.js --file F --title "…, v0.1" --desc "$(cat desc-….txt)" --privacy public`.
+  - YouTube on the Mac: `cd ~/youtube-upload && ~/.nvm/versions/node/v22.13.1/bin/node upload.js --file F --title "…, v0.1" --desc "$(cat desc-….txt)" --privacy public`.
     Run `upload.js --check` first. The token worked on Oct-24; if you get `invalid_grant`, run `node auth.js` there and Greg clicks the tab.
     Title style: lowercase-ish, ending ", v0.1". Description style: see epr-video/desc-epr-v01.txt (who made what: his voice/face/idea,
     the AI's screenplay/animation/code/timing; then the content; then "v0.1. still an attempt, to be improved upon.").

@@ -18,7 +18,7 @@ Sibling project with the same pipeline: ../yellow-is-red-green/ ("seen reddish-g
    **Render on Greg's Mac (GPU, ~1 min)**, not this box (no GPU, ~6 s/frame ≈ 3 h): kit in mac:~/airport-sessions/spinor-v2-render/, run with
    `CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" FF=/opt/homebrew/bin/ffmpeg PUPPETEER=$HOME/core/node_modules/puppeteer-core ~/.nvm/versions/node/v22.13.1/bin/node render.js …`
 5. **Publish**: MP4 to S3 bloop.monster/<shelf>/ (content-type video/mp4); pages via kbt into kb docs/<shelf>/ + personal-reports-push.sh.
-   YouTube on the Mac: ~/pima/work/youtube-upload (upload.js; update.js --id --title --descfile for retitles). Only when Greg says so.
+   YouTube on the Mac: ~/youtube-upload (upload.js; update.js --id --title --descfile for retitles). Only when Greg says so.
 
 ## Gotchas
 - The `ssh mac` reverse tunnel (port 2222) drops when the Mac sleeps; wait for it, don't fight it.

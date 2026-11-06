@@ -84,5 +84,5 @@ PUBLISHED Oct-29: https://youtu.be/9glmM8-isOQ (public), "the EPR paradox, as ma
 and S3 https://bloop.monster/<shelf>/epr-as-matrix-math-v01.mp4. Render from take epq1-20261029-031002.
 Series: D7K6TvOLo7g (Turing machine of QC) → SrnDeKmCIws (circuit diagrams) → qdw7IvXof4k (double slit) → 9glmM8-isOQ (EPR).
 Next YouTube token expiry: ~Nov 5 (testing-mode OAuth, ~7 days): re-run `node auth.js` on the Mac if upload says invalid_grant.
-- Token-expiry how-to also in mac:~/pima/work/youtube-upload/README.md (added Oct-29).
+- Token-expiry how-to also in mac:~/youtube-upload/README.md (added Oct-29).
 - Oct-29: spun off the generic next flight: 🎬 next-video (~/airport-sessions/next-video/brief.txt = the full handoff). Created with tarmac.js new --text.

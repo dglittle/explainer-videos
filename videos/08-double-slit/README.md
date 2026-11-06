@@ -65,7 +65,7 @@ Checked a 16-frame sheet (chk/real3.png). Output: mac:~/airport-sessions/doubles
 desc-doubleslit-v01.txt updated to the two-places / travel-is-the-mix framing. (published, see below)
 
 PUBLISHED Oct-24 (Greg: "publish!"): https://youtu.be/qdw7IvXof4k (public), "the double-slit experiment as a quantum computation, v0.1"
-(desc-doubleslit-v01.txt; mac:~/pima/work/youtube-upload/upload.js), and S3: https://bloop.monster/<shelf>/double-slit-qc-v01.mp4
+(desc-doubleslit-v01.txt; mac:~/youtube-upload/upload.js), and S3: https://bloop.monster/<shelf>/double-slit-qc-v01.mp4
 (= doubleslit-v03.mp4, md5 510186d1…, video/mp4, no-cache). Render from take ds1-20261024-073853.
 Series so far: D7K6TvOLo7g (Turing machine of QC) → SrnDeKmCIws (circuit diagrams) → qdw7IvXof4k (double slit).
 - Oct-24: next (last in the series): ../eprqc-video (the EPR paradox as a quantum computation).

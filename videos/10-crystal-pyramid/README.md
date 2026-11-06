@@ -195,5 +195,5 @@ pyramid, rotating, in JS/WebGL.
 - Final = crystal-cut10.mp4 (16.13 s, 484 frames, half-hearted choir; md5 b1280e9aa7f023b4d7410bfc637afc5e on Mac = here = S3).
 - S3: https://bloop.monster/<shelf>/crystal-pyramid-v01.mp4 (video/mp4, no-cache; served md5 verified).
 - YouTube: https://youtu.be/C3tgVoma3xs public, "the labyrinth crystal-ball pyramid, with tennis balls, v0.1", desc desc-crystal-v01.txt
-  (copy on the Mac in ~/pima/work/youtube-upload/). Token was still valid (renewed Oct 29; next expiry ~Nov 5).
+  (copy on the Mac in ~/youtube-upload/). Token was still valid (renewed Oct 29; next expiry ~Nov 5).
   API right after upload: public, uploaded, processing. Watch for a Content ID claim on the Labyrinth clip (Greg: "we'll see").

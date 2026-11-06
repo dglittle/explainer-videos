@@ -33,7 +33,7 @@ Volume mean −24.1 / max −1.3 dB: ~9 dB louder than qc/matmul, and it's in th
 Checked a 16-frame contact sheet (chk/real.png). Description: desc-circuit-v01.txt. (published, see below)
 
 PUBLISHED Oct-24 (Greg: "publish!"): https://youtu.be/SrnDeKmCIws (public), "from circuit diagrams to vector × matrix, v0.1"
-(desc-circuit-v01.txt; mac:~/pima/work/youtube-upload/upload.js), and S3: https://bloop.monster/<shelf>/circuit-diagrams-v01.mp4
+(desc-circuit-v01.txt; mac:~/youtube-upload/upload.js), and S3: https://bloop.monster/<shelf>/circuit-diagrams-v01.mp4
 (= circuit-v01.mp4, md5 d8ab8e7b…, video/mp4, no-cache). Render from take circ1-20261024-053644.
 Next (Greg's idea): the double-slit experiment as a quantum computation.
 - Oct-24: next in the series: ../doubleslit-video.

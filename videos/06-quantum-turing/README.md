@@ -57,7 +57,7 @@ Output: mac:~/airport-sessions/qc-render/qc-v01.mp4 (copy here: qc-v01.mp4). Des
 (uploaded later the same day, see PUBLISHED below)
 
 PUBLISHED Oct-24 (Greg: "ship it!", title idea his): https://youtu.be/jQTMWvVRNXo (public), "the Turing machine of quantum computation, v0.1"
-(desc-qc-v01.txt; uploaded with mac:~/pima/work/youtube-upload/upload.js, log in upload.log there), and S3:
+(desc-qc-v01.txt; uploaded with mac:~/youtube-upload/upload.js, log in upload.log there), and S3:
 https://bloop.monster/<shelf>/turing-machine-of-qc-v01.mp4 (= qc-v01.mp4, md5 2bcd7282…, content-type video/mp4; put directly
 with aws s3api, since personal-reports-push.sh would label an .mp4 application/octet-stream). Render from take qc1-20261024-042911.
 

@@ -44,7 +44,7 @@ Machines in the logs: "the box" = a small Linux server (4 GB, no GPU: checks, pa
 
 ## How Greg likes to work (learned the hard way)
 - Beautiful over long. A busy "swarm" of little examples under the intro is liked; a CLEAN screen for the real explanation; gloss
-  over what the audience already knows; no hand/finger shapes (use abstract glowing arrowheads); remove "noise" (side panels he
+  over what the audience already knows; remove "noise" (side panels he
   didn't ask for); abrupt endings (no lingering end cards); self-contained videos (no "last time" unless he wants a series).
 - Row vectors, left-to-right flow; Falk's layout (matrix above, result below) reads well.
 - He reads at ~0.75–0.97 of the 2.5 words/s guess; short spoken lines followed by on-screen text need long holds (3–4 s).

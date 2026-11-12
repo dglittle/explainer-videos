@@ -40,6 +40,9 @@ VIDEOS = [
    [('C3tgVoma3xs', 'the labyrinth crystal-ball pyramid, with tennis balls, v0.1')], ['desc-crystal-v01.txt']),
   ('11-color-golf', 'color-golf/video', ['cg-render'], [],
    [('iujHMK7D6OY', 'color golf, v0.1')], ['desc-colorgolf-doc-v01.txt']),
+  # 12-shelf was added with its own videos/12-shelf/work/collect-12.py (same rules); this entry keeps it in a full rebuild
+  ('12-shelf', 'shelf-video', [], ['shf1'],
+   [('d-KngLVobEs', 'syncing with a shelf, v0.1')], ['desc-shelf-v01.txt']),
 ]
 
 SKIP_DIRS = {'node_modules', '.venv', 'chk', 'pub', 'frames', '.airport-uploads', '__pycache__', '.git', 'edit', 'trim',

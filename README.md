@@ -13,6 +13,7 @@ Copy the newest folder that's closest to what you need; don't edit another video
 
 | # | video | folder | how it's made |
 |---|---|---|---|
+| 12 | [syncing with a shelf, v0.1](https://youtu.be/d-KngLVobEs) | [videos/12-shelf](videos/12-shelf) | classic pipeline; the animation runs the real `shelf_merge` ([dglittle/shelf](https://github.com/dglittle/shelf)); booth matches lines by position, no key phrases |
 | 11 | [color golf, v0.1](https://youtu.be/iujHMK7D6OY) | [videos/11-color-golf](videos/11-color-golf) | screen-recorded web game (its own repo: [dglittle/color-golf](https://github.com/dglittle/color-golf)) + canvas animation, cut together |
 | 10 | [the labyrinth crystal-ball pyramid, with tennis balls, v0.1](https://youtu.be/C3tgVoma3xs) | [videos/10-crystal-pyramid](videos/10-crystal-pyramid) | film clip + Blender (Cycles) path-traced glass balls + phone footage + generated choir; trim studio |
 | 9 | [the EPR paradox, as matrix math, v0.1](https://youtu.be/9glmM8-isOQ) | [videos/09-epr-matrix-math](videos/09-epr-matrix-math) | canvas animation + voice booth + Mac render (the classic pipeline) |

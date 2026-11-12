@@ -1,0 +1,529 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>shelf · voice-over booth</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#0d0d0d;color:#ddd;font:15px/1.4 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #222;flex-wrap:wrap}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+h1 b{color:#ffd166}
+button{background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:7px 13px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c2c}button:disabled{opacity:.4;cursor:default}
+button.rec{background:#7a1010;border-color:#c33}button.rec.on{background:#e22;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#meter{width:110px;height:8px;background:#222;border-radius:4px;overflow:hidden}#meter i{display:block;height:100%;width:0;background:#4c4}
+#clock{font:600 16px ui-monospace,monospace;min-width:60px}
+.small{font-size:12px;color:#888}
+#stage{position:relative;height:62vh;overflow:hidden;border-bottom:1px solid #222}
+#lines{position:absolute;left:0;right:0;transition:transform .35s ease}
+.ln{padding:14px 8vw;font-size:30px;line-height:1.3;color:#555;cursor:pointer;transition:color .25s}
+.ln .dir{display:block;font-size:14px;color:#6a6a3a;font-style:italic;margin-bottom:2px}
+.ln.cur{color:#fff;font-size:40px}.ln.cur .dir{color:#cc4}
+.ln.done{color:#3a3a3a}
+#cd{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:140px;font-weight:700;background:#000a;color:#fff}
+#hint{position:absolute;bottom:8px;right:14px;font-size:12px;color:#666}
+main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:14px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{font-size:14px;margin:0 0 8px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.take{border:1px solid #2a2a2a;border-radius:8px;padding:9px 11px;margin-bottom:9px;background:#141414}
+.take.sel{border-color:#886}
+.take audio{width:100%;height:34px;margin:6px 0}
+.take input{background:#111;color:#ddd;border:1px solid #333;border-radius:5px;padding:5px 7px;width:60%}
+.ok{color:#5c5}.bad{color:#e66}
+textarea{width:100%;height:300px;background:#111;color:#ccc;border:1px solid #333;border-radius:6px;font:13px/1.45 ui-monospace,monospace;padding:8px;box-sizing:border-box}
+select{background:#222;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px}
+.ln{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}.ln .tx{flex:1 1 420px}
+.vth{display:flex;gap:6px;flex:none;opacity:.35;transition:opacity .25s}
+.vth figure{margin:0;position:relative}.vth canvas{display:block;width:120px;aspect-ratio:16/9;border-radius:4px;border:1px solid #333;cursor:zoom-in;width:min(120px,8vw)}
+.vth figcaption{position:absolute;left:4px;bottom:2px;font-size:10px;color:#aaa;text-shadow:0 0 3px #000;font-style:normal}
+.ln.cur .vth{opacity:1}.ln.cur .vth canvas{width:min(220px,14vw)}
+body.nof .vth{display:none}
+#vbig{position:fixed;inset:0;background:#000d;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}
+#vbig canvas{width:min(92vw,160vh);aspect-ratio:16/9;border:1px solid #444}#vbig span{margin-top:8px;color:#aaa;font-size:13px}
+#camv{position:fixed;right:18px;top:100px;width:170px;height:170px;border-radius:50%;object-fit:cover;transform:scaleX(-1);border:3px solid #ffd166;display:none;z-index:5;background:#000}
+body.camon #camv{display:block}.take video{width:160px;vertical-align:middle;border-radius:6px}
+</style></head><body>
+<header>
+ <h1><b>shelf</b>: one edit, synced · voice-over booth <span class=small>Nov-12 placeholder script (rewrite freely) · <a href="shelf-anim7.html" style="color:#888">the animation</a></span></h1>
+ <button id="rec" class="rec">● Record</button>
+ <button id="stop" disabled>■ Stop</button>
+ <span id="clock">0:00.0</span>
+ <div id="meter"><i></i></div>
+ <select id="mic" title="microphone"></select>
+ <label class="small"><input type="checkbox" id="clean"> mic cleanup (noise/echo/gain)</label>
+ <label class="small"><input type="checkbox" id="count" checked> 3-2-1</label>
+ <label class="small" title="start / middle / end of what the video shows during each line"><input type="checkbox" id="frames" checked> frames</label>
+ <label class="small" title="also record a small webcam video (shown in a corner circle while you talk)"><input type="checkbox" id="cam"> camera</label>
+</header>
+<div id="stage"><div id="lines"></div><div id="cd"></div>
+ <video id="camv" muted playsinline autoplay title="what the camera sees (mirrored here; the video is not)"></video>
+ <div id="vbig"><canvas width="1920" height="1080"></canvas><span></span></div>
+ <div id="hint" title="Record starts at the highlighted line: click a line first to start there">Space / → / click = next line · ← = back · R = record · S / Esc = stop</div></div>
+<main>
+ <section>
+  <h2>Takes <span class="small">(kept in this browser until you delete them)</span></h2>
+  <div id="takes"><div class="small">No takes yet. Press ● Record (or R), read each line, tap Space when you move to the next one.</div></div>
+  <h2 style="margin-top:18px">On the server <span class="small">(what the renderer can get)</span></h2>
+  <div id="server" class="small">…</div>
+ </section>
+ <section>
+  <h2>Script <span class="small">edit freely: one spoken line per row · rows in (parentheses) are stage directions · saved as you type</span></h2>
+  <textarea id="script" spellcheck="false"></textarea>
+  <div style="margin-top:6px"><button id="reset">Reset to the shelf script</button> <span id="sst" class="small"></span></div>
+ </section>
+</main>
+<script>
+const API='https://test.bloop.monster:61920', K='<VOICE_KEY>';
+const DEFAULT=`(only Alice: her lamp and wall shelf; under it her shelf, the version part running off the bottom of the screen · after the line: the version part lifts up beside the value, the [ ] stretch (a long beat))
+Here's Alice's little world, and its shelf. A shelf is just a pair: some data, and then its version, which has a version number for every piece of the data.
+(Bob fades in on the right: the same world, the same shelf)
+And here's Bob, with a second copy of the same world, and its own shelf.
+(a dashed pipe appears between the two shelves)
+We want to keep them in sync.
+(a pointer clicks the teal swatch; Alice’s lamp turns teal · the code types out: shelf_merge(shelf, {lamp: {color: "teal"}}))
+Say Alice wants to change the lamp's color. In code, that's one call to shelf_merge, with just the part she changed.
+(teal flies from the code into the shelf; color’s version goes 1 → 2 (+1))
+The shelf writes down the new color, and bumps its version, from 1 to 2.
+(the rows on the path fly out into “the change (a shelf too)” · the code gets “→ change”)
+Then it packs up just what changed: the new color with its version, plus the path to get there.
+(the change slides across to Bob’s shelf)
+That little package goes over to Bob.
+(Bob’s code types: shelf_merge(shelf, change) · 1 = 1, look inside; 1 = 1, look inside)
+There, the same call merges it in. It compares versions, from the top. Same version? Look inside.
+(2 > 1: the new one wins; Bob’s shelf takes teal and 2, then his lamp turns teal)
+For the color, 2 beats 1, so the new color wins.
+(both shelves glow green: ✓ in sync · then Stop)
+And now both sides match.`;
+const $=id=>document.getElementById(id);
+
+// ---- video frames: the drawing code below is copied verbatim from anim.html (the page the video renders from) ----
+const VID=(()=>{const cv=Object.assign(document.createElement('canvas'),{width:1920,height:1080}), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas.
+const W=1920, H=1080;
+// ---------- the shelf: shelf_merge copied verbatim from github.com/dglittle/shelf index.js (v0.2.4, commit c4b2f38) ----------
+function shelf_merge(shelf, incoming) {
+    if (!(incoming instanceof Array)) incoming = [incoming, null]
+    let [val, ver, change] = merge(shelf[0], shelf[1], incoming[0], incoming[1])
+    shelf[0] = val
+    shelf[1] = ver
+    return change
+
+    function is_obj(o) { return o && typeof o == 'object' && !Array.isArray(o) }
+    function ver_num(x) { return (x instanceof Array) ? x[0] : x }
+
+    function make_ver(val) {
+        let x = {}
+        for (let [k, v] of Object.entries(val))
+            x[k] = is_obj(v) ? [1, make_ver(v)] : 1
+        return x
+    }
+
+    function merge(a_val, a_ver, b_val, b_ver) {
+        if (b_ver == null) {
+            if (!is_obj(a_val) || !is_obj(b_val)) {
+                if (a_val === b_val || (a_val == null && b_val == null)) return [a_val, a_ver, null]
+                b_ver = (a_ver ? ver_num(a_ver) : 0) + 1
+                if (is_obj(b_val)) b_ver = [b_ver, make_ver(b_val)]
+                return [b_val, b_ver, [b_val, b_ver]]
+            }
+        } else {
+            let c = (a_ver != null) ? (ver_num(a_ver) - ver_num(b_ver)) : -1
+            if (c > 0) return [a_val, a_ver, null]
+            if (c < 0) return [b_val, b_ver, [b_val, b_ver]]
+        }
+
+        if (is_obj(a_val) && is_obj(b_val)) {
+            let change = null
+            for (let key of Object.keys(a_ver[1])) {
+                if ((!b_ver && b_val[key] !== undefined) || b_ver?.[1][key] != null) {
+                    let [val, ver, c] = merge(a_val[key], a_ver[1][key], b_val[key], b_ver?.[1][key])
+
+                    if (val != null) a_val[key] = val
+                    else delete a_val[key]
+
+                    a_ver[1][key] = ver
+                    if (c) {
+                        if (!change) change = [{}, [ver_num(a_ver), {}]]
+                        change[0][key] = c[0]
+                        change[1][1][key] = c[1]
+                    }
+                }
+            }
+            for (let key of Object.keys(b_val)) {
+                if (a_ver[1][key] == null) {
+                    let [val, ver, c] = merge(null, null, b_val[key], b_ver?.[1][key])
+
+                    if (val != null) a_val[key] = val
+                    else delete a_val[key]
+
+                    if (ver != null) a_ver[1][key] = ver
+
+                    if (c) {
+                        if (!change) change = [{}, [ver_num(a_ver), {}]]
+                        change[0][key] = c[0]
+                        change[1][1][key] = c[1]
+                    }
+                }
+            }
+            return [a_val, a_ver, change]
+        } else if (a_val === undefined && b_val === undefined) {
+            return [a_val, a_ver, null]
+        } else if (JSON.stringify(a_val) >= JSON.stringify(b_val)) {
+            return [a_val, a_ver, null]
+        } else {
+            return [b_val, b_ver, [b_val, b_ver]]
+        }
+    }
+}
+// ---------- the story, computed by running the real shelf_merge ----------
+const clone=x=>JSON.parse(JSON.stringify(x));
+const isObj=o=>o&&typeof o=='object'&&!Array.isArray(o), vn=x=>Array.isArray(x)?x[0]:x;
+const COLS={gold:'#ffd166',teal:'#2ec4b6',pink:'#ff6b9a'}, SWATCH=['gold','teal','pink'];
+const INIT={lamp:{on:true,color:'gold'},shelf:{books:3}};   // the little world, as JSON (yes: a shelf on the shelf)
+const EDIT={lamp:{color:'teal'}};                                // what Alice does: click the teal swatch
+const SA=[null,null];shelf_merge(SA,clone(INIT));const A0=clone(SA);       // left shelf (versions inferred: all 1)
+const SB=[null,null];shelf_merge(SB,clone(A0));const B0=clone(SB);         // right shelf: a synced copy
+const CH=clone(shelf_merge(SA,clone(EDIT)));const A1=clone(SA);           // the local edit → the change it returns
+// walk the change against the right shelf, top down, the way merge does: compare versions; equal objects → look inside
+function compareWalk(val,ver,cval,cver,path,out){const a=vn(ver),b=vn(cver);
+ if(b==a&&isObj(val)&&isObj(cval)){out.push({path,a,b,r:'='});for(const k of Object.keys(cver[1]))compareWalk(val[k],ver[1][k],cval[k],cver[1][k],path.concat(k),out)}
+ else out.push({path,a,b,r:b>a?'win':b<a?'lose':'tie',leaf:!isObj(cval)});return out}
+const WALK=compareWalk(B0[0],B0[1],CH[0],CH[1],[],[]);
+const CHB=shelf_merge(SB,clone(CH));const B1=clone(SB);                    // the right side merges it
+const ECHO=shelf_merge(clone(A1),clone(CH));                               // sending it back to the left: nothing to do
+// the shelf drawn as rows: { , key: { , key: value , } — each row with its version
+function treeRows(val,ver){const R=[];(function w(key,v,vr,ind,path){if(isObj(v)){R.push({kind:'open',key,ind,ver:vn(vr),path});for(const k of Object.keys(v))w(k,v[k],vr[1][k],ind+1,path.concat(k));R.push({kind:'close',ind,path})}
+ else R.push({kind:'leaf',key,ind,val:v,ver:vr,path})})(null,val,ver,0,[]);return R}
+const keyTxt=r=>r.kind=='close'||r.key==null?'':r.key+': ', restTxt=r=>r.kind=='close'?'}':r.kind=='open'?'{':JSON.stringify(r.val);
+const pkey=r=>(r.kind=='leaf'?'L:':'O:')+r.path.join('.');
+const RA0=treeRows(...A0),RA1=treeRows(...A1),RB0=treeRows(...B0),RB1=treeRows(...B1);
+const RI={};RA0.forEach((r,i)=>{if(r.kind!='close')RI[pkey(r)]=i});
+const ER=treeRows(...CH).filter(r=>r.kind!='close').map(r=>({...r,i:RI[pkey(r)]}));   // the change's rows, each at its row in the shelf
+const STEP_ROW=WALK.map(s=>RI[(s.leaf?'L:':'O:')+s.path.join('.')]);
+const EDIT_ROW=RA0.findIndex((r,i)=>restTxt(r)!=restTxt(RA1[i]));
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+// PLACEHOLDER lines, only to set the pace (no narration yet); Greg writes the real ones
+const SCRIPT=[
+['just a pair',"Here's Alice's little world, and its shelf. A shelf is just a pair: some data, and then its version, which has a version number for every piece of the data.",3.0],
+['second copy',"And here's Bob, with a second copy of the same world, and its own shelf.",1.0],
+['keep them in sync',"We want to keep them in sync.",0.8],
+['change the lamp',"Say Alice wants to change the lamp's color. In code, that's one call to shelf_merge, with just the part she changed.",1.0],
+['from 1 to 2',"The shelf writes down the new color, and bumps its version, from 1 to 2.",1.0],
+['just what changed',"Then it packs up just what changed: the new color with its version, plus the path to get there.",1.0],
+['over to bob',"That little package goes over to Bob.",0.6],
+['from the top',"There, the same call merges it in. It compares versions, from the top. Same version? Look inside.",1.0],
+['2 beats 1',"For the color, 2 beats 1, so the new color wins.",1.4],
+['both sides match',"And now both sides match.",1.2]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const bump=(t0,d=0.6)=>{const u=(tt-t0)/d;return u>0&&u<1?Math.sin(Math.PI*u):0};
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif', MONO='Menlo,"DejaVu Sans Mono","Liberation Mono",monospace';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',a:'#4da3ff',b:'#ff9f43',ok:'#3ecf6e',ink:'#08121c',key:'#8ab8e6'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+function mtxt(s,x,y,sz,col=C.txt,a=1,al='left',wt=''){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${MONO}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const MWC={}, mw=(s,sz)=>{const k=sz+'|'+s;if(k in MWC)return MWC[k];g.save();g.font=`${sz}px ${MONO}`;const w=g.measureText(s).width;g.restore();return MWC[k]=w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function hexA(c,a){const p=[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));return`rgba(${p.join(',')},${a})`}
+function mixA(c1,c2,k,a){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgba('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+','+a+')'}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.5;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// a comet: a glowing dot that flies from p to q over [t0, t0+d], with a short tail
+function comet(p,q,t0,d,col){const u=(tt-t0)/d;if(u<0||u>1.25)return;const f=1-cl((u-1)/0.25);
+ for(let k=0;k<10;k++){const v=eo(cl(u-k*0.025));glowDot(lerp(p[0],q[0],v),lerp(p[1],q[1],v),7-k*0.5,col,f*(1-k/10))}}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+// ---------- the stage ----------
+const PA={x:70,y:100,w:510,h:340}, PB={x:1340,y:100,w:510,h:340};   // the two little worlds
+const SHY=462, SHH=338, FS=21, IND=25, RY=i=>510+i*33;               // the two shelves, one row per line
+const VALX=46, VERX=298;                                              // inside a shelf panel: the value column, then the version column
+const SIDE={A:{P:PA},B:{P:PB}};
+const EFS=19, EIND=21, EVALX=34, EVERX=250, ENVW=430;                // the change: a small shelf of its own
+const EXA=PA.x+PA.w+22, EXB=PB.x-22-ENVW;
+const lampX=P=>P.x+140, swXY=(P,i)=>[lampX(P)+(i-1)*46,P.y+312];
+// rich text: segs = [[text, color, weight]], centered or left at x
+function rich(segs,x,y,sz,al='center',a=1){const tws=segs.map(s=>{g.save();g.font=`${s[2]||''} ${sz}px ${FONT}`;const w=g.measureText(s[0]).width;g.restore();return w});
+ let X=al=='center'?x-tws.reduce((p,q)=>p+q,0)/2:x;segs.forEach((s,i)=>{txt(s[0],X,y,sz,s[1]||C.txt,'left',s[2]||'',a);X+=tws[i]})}
+// one value row: key in blue, value in white, a color dot after color values
+function row(r,x,y,sz,a,col=C.txt){if(a<=0)return;const k=keyTxt(r),v=restTxt(r);mtxt(k,x,y,sz,C.key,a);mtxt(v,x+mw(k,sz),y,sz,col,a);
+ if(r.kind=='leaf'&&COLS[r.val]){const dx=x+mw(k+v,sz)+sz*0.55;g.save();g.globalAlpha*=a;g.beginPath();g.arc(dx,y,sz*0.28,0,7);g.fillStyle=COLS[r.val];g.fill();g.restore()}}
+// one version row: the same keys; a leaf's version is a number, an object's is [n, {…}]
+const numCX=(r,x,sz,n)=>x+mw(r.key!=null?r.key+': ':'',sz)+(r.kind=='open'?mw('[',sz):0)+mw(''+n,sz)/2;
+function verRow(r,x,y,sz,a,n0,n1,k=0,ring=0,pop=0){if(a<=0)return;
+ if(r.kind=='close'){mtxt('}]',x,y,sz,C.dim,a);return}
+ const kt=r.key!=null?r.key+': ':'';mtxt(kt,x,y,sz,C.key,a);let X=x+mw(kt,sz);
+ if(r.kind=='open'){mtxt('[',X,y,sz,C.dim,a);X+=mw('[',sz)}
+ const nw=mw(''+n1,sz),cx=X+nw/2;
+ if(ring>0){g.save();g.globalAlpha*=a*ring;g.shadowColor=C.gold;g.shadowBlur=18;g.strokeStyle=C.gold;g.lineWidth=2.5;g.beginPath();g.arc(cx,y,sz*0.75,0,7);g.stroke();g.restore()}
+ g.save();g.translate(cx,y);const sc=1+0.6*pop;g.scale(sc,sc);if(k<1)mtxt(''+n0,0,1,sz,C.gold,a*(1-k),'center','bold');if(k>0)mtxt(''+n1,0,1,sz,'#fff',a*k,'center','bold');g.restore();
+ if(r.kind=='open')mtxt(', {',X+nw,y,sz,C.dim,a)}
+// the outer [ … ] of a shelf
+function bigBr(x,y0,y1,dir,a,col='#6a7c8e'){if(a<=0)return;g.save();g.globalAlpha*=a;g.strokeStyle=col;g.lineWidth=3;g.lineCap='round';g.lineJoin='round';g.beginPath();g.moveTo(x+dir*12,y0);g.lineTo(x,y0);g.lineTo(x,y1);g.lineTo(x+dir*12,y1);g.stroke();g.restore()}
+// a bracket character in the rows' mono font, stretched to span ytop..ybot: its two ends stay as drawn, only the stem in the
+// middle is stretched (at its natural height it's exactly the typed character)
+const BRC=C.txt, GBM={};
+function gbMetrics(ch,sz){const k=ch+sz;if(GBM[k])return GBM[k];g.save();g.font=`${sz}px ${MONO}`;g.textBaseline='middle';const m=g.measureText(ch);g.restore();return GBM[k]={asc:m.actualBoundingBoxAscent,desc:m.actualBoundingBoxDescent}}
+function glyphBr(ch,x,ytop,ybot,sz,col,a){if(a<=0)return;const{asc,desc}=gbMetrics(ch,sz),h0=asc+desc,h=Math.max(h0,ybot-ytop),c=h0*0.42;
+ const part=(y0,y1,fn)=>{g.save();g.beginPath();g.rect(x-sz,y0,sz*3,y1-y0);g.clip();g.globalAlpha*=a;g.font=`${sz}px ${MONO}`;g.fillStyle=col;g.textBaseline='middle';g.textAlign='left';fn();g.restore()};
+ part(ytop-4,ytop+c,()=>g.fillText(ch,x,ytop+asc));
+ part(ybot-c,ybot+4,()=>g.fillText(ch,x,ybot-desc));
+ if(h>2*c+0.5){const k=(h-2*c)/(h0-2*c);part(ytop+c-0.5,ybot-c+0.5,()=>{g.translate(0,ytop+c);g.scale(1,k);g.fillText(ch,x,asc-c)})}}
+// the tall [ and ] of a shelf whose rows run r0..r1, value column at vx (the [ sits right before it), right edge at rx
+function shelfBr(vx,rx,r0,r1,sz,a){const m=gbMetrics('[',sz);glyphBr('[',vx-mw('[',sz),RY(r0)-m.asc,RY(r1)+m.desc,sz,BRC,a);glyphBr(']',rx,RY(r0)-m.asc,RY(r1)+m.desc,sz,BRC,a)}
+// a whole shelf, [value, version]: rows R0 → R1 (values change at tv, versions at tvr)
+function shelf(side,R0,R1,tv,tvr,a,hl=()=>0,ring=()=>0){if(a<=0)return;const P=SIDE[side].P,ox=P.x,y0=RY(0)-20,y1=RY(R0.length-1)+20;
+ shelfBr(ox+VALX,ox+P.w-28,0,R0.length-1,FS,a);
+ txt('value',ox+VALX,SHY+22,16,C.dim,'left','',a);txt('version',ox+VERX,SHY+22,16,C.gold,'left','',a*0.8);
+ R0.forEach((r0,i)=>{const r1=R1[i],y=RY(i),h=hl(i);
+  if(h>0){g.save();g.globalAlpha*=a*h;rr(ox+34,y-15,P.w-62,30,8);g.fillStyle='#ffffff14';g.fill();g.restore()}
+  const x=ox+VALX+r0.ind*IND,kv=restTxt(r0)!=restTxt(r1)?ease((tt-tv)/0.45):0;
+  if(kv<1)row(r0,x,y,FS,a*(1-kv));if(kv>0)row(r1,x,y,FS,a*kv,'#fff');
+  if(r0.kind=='close'&&r0.path.length==0)mtxt(',',x+mw('}',FS),y,FS,C.dim,a);
+  const ch=r0.kind!='close'&&r0.ver!=r1.ver;
+  verRow(r0,ox+VERX+r0.ind*IND,y,FS,a,r0.ver,r1.ver,ch?ease((tt-tvr)/0.3):0,r0.kind=='close'?0:ring(i),ch?bump(tvr,0.7):0)})}
+// the change's rows, at the shelf rows they belong to (the outer closing brace sits right after the last row)
+const ERALL=(()=>{const R=treeRows(...CH);let prev=0;return R.map(r=>{let i;if(r.kind!='close')i=RI[pkey(r)];else i=r.path.length?RA0.findIndex(q=>q.kind=='close'&&q.path.join('.')==r.path.join('.')):prev+1;prev=Math.max(prev,i);return{...r,i}})})();
+// the little world: a lamp (with its color swatches) and a wall shelf with books
+function world(P,label,col,sel,a,flash=0){if(a<=0)return;g.save();g.globalAlpha*=a;
+ rr(P.x,P.y,P.w,P.h,18);g.fillStyle='#0f1923';g.fill();g.strokeStyle='#2a3a4a';g.lineWidth=2;g.stroke();g.restore();
+ txt(label,P.x+20,P.y+28,24,label=='Alice'?'#6fd0ff':label=='Bob'?'#ffb36b':C.dim,'left','bold',a);
+ const lx=lampX(P),ty=P.y+118,by=P.y+185;
+ g.save();g.globalAlpha*=a;g.beginPath();g.rect(P.x+2,P.y+2,P.w-4,P.h-4);g.clip();
+ const gl=g.createRadialGradient(lx,by+10,8,lx,by+30,190);gl.addColorStop(0,col.replace('rgb','rgba').replace(')',`,${0.5+0.3*flash})`));gl.addColorStop(1,col.replace('rgb','rgba').replace(')',',0)'));
+ g.fillStyle=gl;g.beginPath();g.moveTo(lx-80,by);g.lineTo(lx+80,by);g.lineTo(lx+190,P.y+P.h);g.lineTo(lx-190,P.y+P.h);g.closePath();g.fill();g.restore();
+ g.save();g.globalAlpha*=a;g.fillStyle='#55626f';g.fillRect(lx-4,by,8,80);g.beginPath();g.ellipse(lx,by+84,52,10,0,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=30+30*flash;g.fillStyle=col;g.beginPath();g.moveTo(lx-34,ty);g.lineTo(lx+34,ty);g.lineTo(lx+76,by);g.lineTo(lx-76,by);g.closePath();g.fill();
+ g.shadowBlur=0;g.fillStyle='#fff8e0';g.beginPath();g.arc(lx,by+4,9,0,7);g.fill();g.restore();
+ SWATCH.forEach((n,i)=>{const[x,y]=swXY(P,i);g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,13,0,7);g.fillStyle=COLS[n];g.fill();
+  if(n==sel){g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(x,y,19,0,7);g.stroke()}g.restore()});
+ const sx=P.x+370,py=P.y+240,BK=['#c8553d','#4f81bd','#9bbb59','#8064a2','#f2a541'],BH=[96,112,84,104,90];g.save();g.globalAlpha*=a;
+ g.fillStyle='#5a3a26';for(const bx of[sx-80,sx+80]){g.beginPath();g.moveTo(bx-5,py+16);g.lineTo(bx+5,py+16);g.lineTo(bx+5,py+58);g.closePath();g.fill()}   // brackets
+ const n=INIT.shelf.books,bw=28,x0=sx-108;
+ for(let i=0;i<n;i++){const h=BH[i%5],x=x0+i*(bw+4);rr(x,py-h,bw,h,4);g.fillStyle=BK[i%5];g.fill();g.fillStyle='#ffffff40';g.fillRect(x+5,py-h+14,bw-10,4);g.fillRect(x+5,py-24,bw-10,4)}
+ const vx=sx+62;g.fillStyle='#b5654a';g.beginPath();g.moveTo(vx-24,py-46);g.lineTo(vx+24,py-46);g.lineTo(vx+18,py);g.lineTo(vx-18,py);g.closePath();g.fill();   // a little plant
+ g.fillStyle='#5cb85c';for(const[dx,dy,r]of[[-14,-62,15],[12,-66,16],[0,-82,17],[-2,-56,13]]){g.beginPath();g.arc(vx+dx,py+dy,r,0,7);g.fill()}
+ rr(sx-125,py,250,16,4);g.fillStyle='#9a6a44';g.fill();g.fillStyle='#ffffff22';g.fillRect(sx-121,py+2,242,3);g.restore()}
+// the mouse pointer (tip at x, y)
+function pointer(x,y,a,sc=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.scale(sc*1.3,sc*1.3);g.beginPath();g.moveTo(0,0);g.lineTo(0,30);g.lineTo(8,23);g.lineTo(13,34);g.lineTo(18,32);g.lineTo(13,21);g.lineTo(23,21);g.closePath();
+ g.fillStyle='#fff';g.shadowColor='#000';g.shadowBlur=8;g.fill();g.shadowBlur=0;g.strokeStyle='#111';g.lineWidth=1.5;g.stroke();g.restore()}
+// ---------- the timeline (all derived from the lines) ----------
+const LP=LK('just a pair'),L0=LK('second copy'),L1=LK('keep them in sync'),L2=LK('change the lamp'),L3=LK('from 1 to 2'),L4=LK('just what changed'),L5=LK('over to bob'),L6=LK('from the top'),L7=LK('2 beats 1'),L8=LK('both sides match');
+const T_CLICK=at(L2,0.25), T_CODEA=at(L2,0.5), T_RET=at(L4,0.12), T_CODEB=at(L6,0.02), T_AVAL=at(L3,0.22), T_AVER=at(L3,0.62);
+const T_ROW=j=>at(L4,0.32)+j*0.28, T_BOX=at(L4,0.32)+ER.length*0.28+0.3;
+const T_GO=at(L5,0.15), T_ARR=E[L5]+0.25;
+const NEQ=WALK.filter(s=>s.r=='=').length;
+const T_STEP=WALK.map((s,i)=>i<NEQ?at(L6,0.42+i*0.55/Math.max(1,NEQ)):at(L7,0.22+(i-NEQ)*0.3));
+const WIN=WALK.findIndex(s=>s.r=='win'), T_BVAL=T_STEP[WIN]+0.7, T_BVER=T_STEP[WIN]+0.9, T_BLAMP=T_STEP[WIN]+1.75;
+function scMain(){
+ const aInA=ev(LP,0,0.8), aIn=ev(L0,0,0.8), aSh=ev(L0,0.15,0.8), placed=tt>=T_LIFT+D_LIFT?1:0, out8=1-ev(L8,0,0.6);
+ // the pipe between the two sides
+ const aP=ev(L1,0.15,0.6);if(aP>0){g.save();g.globalAlpha*=aP*0.5;g.setLineDash([10,10]);g.strokeStyle=C.dim;g.lineWidth=2;
+  for(const y of[RY(0)-30,RY(Math.max(...ERALL.map(r=>r.i)))+30]){g.beginPath();g.moveTo(SIDE.A.P.x+PA.w,y);g.lineTo(PB.x,y);g.stroke()}g.restore()}
+ // the worlds
+ const kA=ease((tt-T_CLICK-0.05)/0.35), kB=ease((tt-T_BLAMP)/0.4);
+ const cA=mix(COLS[A0[0].lamp.color],COLS[A1[0].lamp.color],kA), cB=mix(COLS[B0[0].lamp.color],COLS[B1[0].lamp.color],kB);
+ world(PA,'Alice',cA,kA<0.5?A0[0].lamp.color:A1[0].lamp.color,aInA,bump(T_CLICK,0.8));
+ world(PB,'Bob',cB,kB<0.5?B0[0].lamp.color:B1[0].lamp.color,aIn,bump(T_BLAMP,0.8));
+ // the shelf panels (green when in sync at the end)
+ const k8=ev(L8,0.15,0.6);
+ for(const P of[PA,PB]){g.save();g.globalAlpha*=P==PA?placed:aSh;rr(P.x,SHY,P.w,SHH,18);g.fillStyle='#0c141c';g.fill();g.strokeStyle=mix('#2a3a4a',C.ok,k8);g.lineWidth=2+2*k8;if(k8>0){g.shadowColor=C.ok;g.shadowBlur=20*k8}g.stroke();g.restore();
+}
+ const chipsLit=bump(at(L0,0.72),1.4);
+ // left shelf: the edit; the rows on the change's path glow while it's packed
+ const onPath=new Set(ER.map(r=>r.i)), pk=ev(L4,0.1,0.4)*(1-ease((tt-T_GO)/0.5));
+ if(!placed)shelfMorph();
+ shelf('A',RA0,RA1,T_AVAL,T_AVER,placed,i=>Math.max(onPath.has(i)?pk:0,i==EDIT_ROW?bump(T_AVAL-0.1,1.2):0),()=>chipsLit);
+ // right shelf: the compare walk, then the take
+ const ringB=i=>{let m=chipsLit;WALK.forEach((s,j)=>{if(STEP_ROW[j]!=i)return;const on=ease((tt-T_STEP[j])/0.25),off=s.r=='='?ease((tt-T_STEP[j]-1.3)/0.3):1-out8;m=Math.max(m,on*(1-off))});return m};
+ shelf('B',RB0,RB1,T_BVAL,T_BVER,aSh,i=>i==STEP_ROW[WIN]?bump(T_BVAL-0.1,1.4):0,ringB);
+ // the click
+ const [sx,sy]=swXY(PA,SWATCH.indexOf(A1[0].lamp.color)), t0=at(L2,0.12), pA=ev(L2,0.05,0.4)*(1-ev(L3,0.35,0.5));
+ const u=eo((tt-t0)/(T_CLICK-t0-0.08)), px=lerp(PA.x+470,sx+2,u), py=lerp(PA.y+300,sy+2,u);
+ const rp=(tt-T_CLICK)/0.55;if(rp>0&&rp<1){g.save();g.globalAlpha*=1-rp;g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(sx,sy,14+30*rp,0,7);g.stroke();g.restore()}
+ pointer(px,py,pA,1-0.12*bump(T_CLICK-0.08,0.25));
+ // world → shelf on the left; shelf → world on the right
+ comet(CODE_TEAL(),[PA.x+VALX+RA0[EDIT_ROW].ind*IND+mw(keyTxt(RA0[EDIT_ROW]),FS)+30,RY(EDIT_ROW)],T_AVAL-0.55,0.55,COLS[A1[0].lamp.color]);
+ const wr=RA1[STEP_ROW[WIN]];comet([PB.x+VALX+wr.ind*IND+mw(keyTxt(wr),FS)+30,RY(STEP_ROW[WIN])],[lampX(PB),PB.y+170],T_BLAMP-0.6,0.6,COLS[B1[0].lamp.color]);
+ // "+1" on the bumped version
+ const pb=(tt-T_AVER)/1.0;if(pb>0&&pb<1)txt('+1',numCX(RA1[EDIT_ROW],PA.x+VERX+RA1[EDIT_ROW].ind*IND,FS,RA1[EDIT_ROW].ver)+18,RY(EDIT_ROW)-10-26*pb,22,C.gold,'left','bold',1-pb);
+ // the change: rows fly out of the left shelf into a package, which travels to the right shelf
+ const go=ease((tt-T_GO)/(T_ARR-T_GO)), EX=lerp(EXA,EXB,go), aE=out8;
+ const yTop=RY(0)-24, yBot=RY(Math.max(...ERALL.map(r=>r.i)))+24, bk=ease((tt-T_BOX)/0.5);
+ if(bk>0&&aE>0){g.save();g.globalAlpha*=bk*aE;rr(EX,yTop,ENVW,yBot-yTop,14);g.fillStyle='#1b2a3a';g.fill();g.strokeStyle=C.a;g.lineWidth=2.5;g.shadowColor=C.a;g.shadowBlur=16;g.stroke();g.restore();
+  shelfBr(EX+EVALX,EX+ENVW-24,0,Math.max(...ERALL.map(r=>r.i)),EFS,bk*aE);
+  rich([['the change',C.a,'bold'],[' (a shelf too)',C.dim,'']],EX+ENVW/2,yTop-22,20,'center',bk*aE)}
+ ERALL.forEach(r=>{const j=r.kind=='close'?-1:ER.findIndex(q=>pkey(q)==pkey(r)),k=j<0?bk:eo((tt-T_ROW(j))/0.6);if(k<=0||aE<=0)return;const y=RY(r.i),al=aE*Math.min(1,k*3),f=j<0?1:k;
+  const vx=lerp(PA.x+VALX+r.ind*IND,EX+EVALX+r.ind*EIND,f), wx=lerp(PA.x+VERX+r.ind*IND,EX+EVERX+r.ind*EIND,f), sz=lerp(FS,EFS,f);
+  row(r,vx,y,sz,al);if(r.kind=='close'&&r.path.length==0)mtxt(',',vx+mw('}',sz),y,sz,C.dim,al);
+  verRow(r,wx,y,sz,al,r.ver,r.ver,0,r.kind=='close'?0:ringB(r.i)*(go>0.99?1:0))});
+ // the compare walk: a sign between the package's version and the shelf's, and a note under the package
+ WALK.forEach((s,j)=>{const k=ease((tt-T_STEP[j])/0.3);if(k<=0)return;const y=RY(STEP_ROW[j]),a=k*out8,win=s.r=='win';
+  const note=s.r=='='?`${s.b} = ${s.a}: same, so look inside`:s.r=='win'?`${s.b} > ${s.a}: the new one wins`:s.r=='lose'?`${s.b} < ${s.a}: keep ours`:`${s.b} = ${s.a}: bigger value wins`;
+  txt(note,EXB+ENVW/2,yBot+34+j*32,22,win?C.ok:C.txt,'center',win?'bold':'',a)});
+ // the end
+ codeStrip();
+ txt('✓ in sync',(PA.x+PA.w+PB.x)/2,(RY(0)+RY(3))/2+10,44,C.ok,'center','bold',k8)}
+// ---------- the code strip (bottom band): the same one function makes the edit and merges it ----------
+const jsLit=o=>JSON.stringify(o).replace(/"(\w+)":/g,'$1: ').replace(/,/g,', ');   // {lamp: {color: "teal"}}
+const CODE_Y=880, CFS=26, CAX=PA.x;
+const CODE_A=[['shelf_merge',C.gold],['(shelf, ',C.txt],[jsLit(EDIT),C.key],[')',C.txt]], CODE_B=[['shelf_merge',C.gold],['(shelf, ',C.txt],['change',C.a],[')',C.txt]];
+function code(segs,x,y,u,a){if(a<=0||u<=0)return;const n=segs.reduce((m,s)=>m+s[0].length,0);let left=Math.round(n*cl(u)),X=x;
+ for(const[t,c]of segs){if(left<=0)break;const p=t.slice(0,left);mtxt(p,X,y,CFS,c,a);X+=mw(p,CFS);left-=p.length}
+ if(u<1&&Math.floor(tt*3)%2==0){g.save();g.globalAlpha*=a;g.fillStyle=C.txt;g.fillRect(X+2,y-CFS*0.6,3,CFS*1.2);g.restore()}return X}
+const codeW=segs=>mw(segs.map(s=>s[0]).join(''),CFS);
+let CBX_=null;const CBX=()=>CBX_??=FACE[0]-14-codeW(CODE_B);   // right side, clear of the webcam corner
+function CODE_TEAL(){const pre=CODE_A[0][0]+CODE_A[1][0],lit=CODE_A[2][0],v=JSON.stringify(A1[0].lamp.color),i=lit.indexOf(v);return[CAX+mw(pre+lit.slice(0,i),CFS)+mw(v,CFS)/2,CODE_Y-18]}
+function codeStrip(){const a=1;
+ const ka=ease((tt-T_CODEA)/0.3);if(ka>0){const X=code(CODE_A,CAX,CODE_Y,(tt-T_CODEA)/1.3,ka);
+  const r=ease((tt-T_RET)/0.4);if(r>0){const x2=CAX+codeW(CODE_A);mtxt(' → ',x2,CODE_Y,CFS,C.dim,r);mtxt('change',x2+mw(' → ',CFS),CODE_Y,CFS,C.a,r,'left','bold')}
+  txt("Alice's click runs:",CAX,CODE_Y-44,18,C.dim,'left','',ka)}
+ const kb=ease((tt-T_CODEB)/0.3);if(kb>0){code(CODE_B,CBX(),CODE_Y,(tt-T_CODEB)/0.9,kb);txt('Bob, when the change arrives:',CBX(),CODE_Y-44,18,C.dim,'left','',kb)}}
+// ---------- the opening: a shelf written out long (value, then version under it); the version lifts up beside it ----------
+const T_SHOW=S[0]+0.3, T_LIFT=E[0]+0.2, D_LIFT=2.8;
+// Alice's shelf, written long: the value exactly where it ends up, and the version under it, running off the screen;
+// then the version part slides right and lifts up beside the value, and the [ and ] stretch tall
+function shelfMorph(){const n=RA0.length,v0=ease((tt-T_SHOW)/0.8);if(v0<=0)return;
+ // u1: 0–0.28 the version part slides right; 0.28–0.66 it lifts up into view; 0.66–0.8 its ] moves to the right edge;
+ // 0.8–1 the [ and ] stretch tall; the labels come in together at the end
+ const u1=cl((tt-T_LIFT)/D_LIFT),ux=ease(u1/0.28),uy=ease((u1-0.28)/0.38),sl=ease((u1-0.66)/0.14),st=ease((u1-0.8)/0.2),la=v0*ease((u1-0.8)/0.2);
+ // the panel runs off the bottom of the screen too, until the version part has come up
+ const ph=lerp(H-SHY+80,SHH,uy);
+ g.save();g.globalAlpha*=v0;rr(PA.x,SHY,PA.w,ph,18);g.fillStyle='#0c141c';g.fill();g.strokeStyle='#2a3a4a';g.lineWidth=2;g.stroke();g.restore();
+ txt('value',PA.x+VALX,SHY+22,16,C.dim,'left','',la);txt('version',PA.x+VERX,SHY+22,16,C.gold,'left','',la*0.8);
+ const m=gbMetrics('[',FS), top=RY(0)-m.asc, bot=RY(n-1)+m.desc;
+ // [ : typed right before the value's {, then stretched down
+ glyphBr('[',PA.x+VALX-mw('[',FS),top,lerp(RY(0)+m.desc,bot,st),FS,BRC,v0);
+ // ] : typed right after the version's last }] (off screen); it comes up with it, moves to the right edge, then stretches up
+ const ly=lerp(RY(2*n-1),RY(n-1),uy), rx=lerp(lerp(PA.x+VALX,PA.x+VERX,ux)+mw('}]',FS),PA.x+PA.w-28,sl);
+ glyphBr(']',rx,lerp(ly-m.asc,top,st),ly+m.desc,FS,BRC,v0);
+ RA0.forEach((r,i)=>{const x=PA.x+VALX+r.ind*IND;
+  row(r,x,RY(i),FS,v0);if(r.kind=='close'&&r.path.length==0)mtxt(',',x+mw('}',FS),RY(i),FS,C.dim,v0);
+  verRow(r,lerp(PA.x+VALX,PA.x+VERX,ux)+r.ind*IND,lerp(RY(n+i),RY(i),uy),FS,v0,r.ver,r.ver)})}
+function scIntro(){const a=ev(LP,0,0.7)*(1-ev(L0,0,0.6));txt('syncing with a shelf',W/2,52,40,C.txt,'center','bold',a)}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ scIntro();scMain();
+ return cv}
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+
+return {frame:drawFrame,VK,SCRIPT};})();
+const words=t=>new Set(t.toLowerCase().replace(/[’']/g,"'").match(/[a-z0-9_']+/g)||[]);
+function sim(a,b){const A=words(a),B=words(b);let n=0;for(const w of A)if(B.has(w))n++;return n/Math.max(1,A.size+B.size-n)}
+// booth line i → animation line (or null): same count → same position; otherwise the best in-order match by shared words
+function lineMap(lines){const n=lines.length,m=VID.SCRIPT.length;if(n==m)return lines.map((_,i)=>i);
+ const D=[...Array(n+1)].map(()=>Array(m+1).fill(0)),P=[...Array(n+1)].map(()=>Array(m+1).fill(0));
+ for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){const s=sim(lines[i-1].text,VID.SCRIPT[j-1][1]),c=[D[i-1][j],D[i][j-1],s>0.15?D[i-1][j-1]+s:-1];const k=c.indexOf(Math.max(...c));D[i][j]=c[k];P[i][j]=k}
+ const out=Array(n).fill(null);for(let i=n,j=m;i>0&&j>0;){const k=P[i][j];if(k==2){out[i-1]=j-1;i--;j--}else if(k==0)i--;else j--}return out}
+let MAP=[];
+function vspanAt(j){if(j==null)return null;return VID.VK[j][1].map((t,i)=>[t,['start','middle','end'][i]])}
+function vspan(text){const s=text.toLowerCase().replace(/’/g,"'"); const k=VID.VK.find(k=>s.includes(k[0])); if(!k)return null;
+ return k[1].map((t,i)=>[t,['start','middle','end'][i]])}
+let vjob=0;
+function paintFrames(){const job=++vjob, q=[...document.querySelectorAll('canvas.vf')];
+ const step=()=>{if(job!==vjob||!q.length)return; const c=q.shift(), g=c.getContext('2d'); g.imageSmoothingQuality='high';
+  g.drawImage(VID.frame(+c.dataset.t),0,0,c.width,c.height); setTimeout(step,0)}; step()}
+function zoomFrame(t,lab){const o=$('vbig'); o.style.display='flex'; const c=o.querySelector('canvas'), g=c.getContext('2d');
+ g.imageSmoothingQuality='high'; g.drawImage(VID.frame(t),0,0,c.width,c.height); o.querySelector('span').textContent=lab+' · anim t = '+t.toFixed(1)+' s'}
+$('vbig').onclick=()=>$('vbig').style.display='none';
+$('cam').checked=localStorage.getItem('shf1-cam')==='on';document.body.classList.toggle('camon',$('cam').checked);
+$('cam').onchange=async e=>{localStorage.setItem('shf1-cam',e.target.checked?'on':'off');document.body.classList.toggle('camon',e.target.checked);
+ if(rec&&rec.state==='recording')return;
+ if(e.target.checked||stream){try{await openMic()}catch(err){alert('Camera blocked: '+err.message);e.target.checked=false;document.body.classList.remove('camon')}}};
+if($('cam').checked)setTimeout(()=>openMic().catch(()=>{}),0);
+$('frames').checked=localStorage.getItem('shf1-frames')!=='off';document.body.classList.toggle('nof',!$('frames').checked);
+$('frames').onchange=e=>{localStorage.setItem('shf1-frames',e.target.checked?'on':'off');document.body.classList.toggle('nof',!e.target.checked);go(cur,false)};
+let LINES=[], cur=0, rec=null, chunks=[], t0=0, cues=[], stream=null, an=null, playing=null, tick=null;
+function parse(txt){const out=[];let dir=[];for(let r of txt.split('\n')){r=r.trim();if(!r)continue;
+ if(/^\(.*\)$/.test(r)){dir.push(r.slice(1,-1));continue}out.push({text:r,dir:dir.join(' · ')});dir=[]}return out}
+function render(){MAP=lineMap(LINES);$('lines').innerHTML=LINES.map((l,i)=>{const v=vspanAt(MAP[i]);return `<div class="ln" data-i="${i}"><div class="tx">${l.dir?`<span class="dir">${esc(l.dir)}</span>`:''}${esc(l.text)}</div>${v?`<div class="vth">${v.map(([t,n])=>`<figure><canvas class="vf" width="384" height="216" data-t="${t}" data-n="${n}"></canvas><figcaption>${n}</figcaption></figure>`).join('')}</div>`:''}</div>`}).join('');
+ [...document.querySelectorAll('canvas.vf')].forEach(c=>c.onclick=e=>{e.stopPropagation();zoomFrame(+c.dataset.t,c.dataset.n)});paintFrames();
+ [...document.querySelectorAll('.ln')].forEach(e=>e.onclick=()=>go(+e.dataset.i));go(0)}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+let baseY=0,nudge=0;
+addEventListener('load',()=>$('stage').addEventListener('wheel',ev=>{ev.preventDefault();nudge-=ev.deltaY;
+ const L=$('lines'),H=$('stage').clientHeight;nudge=Math.max(-(L.offsetHeight+baseY-H*0.5),Math.min(H*0.5-baseY,nudge));L.style.transform=`translateY(${baseY+nudge}px)`},{passive:false}));
+function go(i,log=true){cur=Math.max(0,Math.min(LINES.length-1,i));
+ document.querySelectorAll('.ln').forEach((e,j)=>{e.classList.toggle('cur',j==cur);e.classList.toggle('done',j<cur)});
+ const e=document.querySelector(`.ln[data-i="${cur}"]`);if(!e)return;
+ const H=$('stage').clientHeight;nudge=0;const tx=e.querySelector('.tx')||e;baseY=Math.min(H*0.38-e.offsetTop,Math.max(6,H-tx.offsetHeight-6)-tx.offsetTop);$('lines').style.transform=`translateY(${baseY}px)`;
+ if(log&&rec&&rec.state==='recording')cues.push({t:+(now()).toFixed(2),line:cur})}
+const now=()=>(performance.now()-t0)/1000;
+const fmt=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
+function loadScript(){const s=localStorage.getItem('shf1-script');$('script').value=s||DEFAULT;LINES=parse($('script').value);render()}
+let saveT=null,sendT=null;
+function sendScript(){fetch(`${API}/meta?k=${K}&id=shf1-script`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({script:$('script').value,lines:LINES.map(l=>l.text),saved:new Date().toString()})})
+ .then(r=>{$('sst').textContent=r.ok?'saved in this browser · copy sent to the box '+new Date().toLocaleTimeString():'saved in this browser (the box copy failed)'}).catch(()=>{$('sst').textContent='saved in this browser (the box copy failed: offline?)'})}
+$('script').addEventListener('input',()=>{$('sst').textContent='editing…';clearTimeout(saveT);clearTimeout(sendT);
+ saveT=setTimeout(()=>{localStorage.setItem('shf1-script',$('script').value);if(!(rec&&rec.state==='recording')){const c=cur;LINES=parse($('script').value);render();go(Math.min(c,LINES.length-1),false)}$('sst').textContent='saved in this browser'},400);
+ sendT=setTimeout(sendScript,2500)});
+$('reset').onclick=()=>{if(!confirm('Throw away your edits and go back to the original script?'))return;localStorage.removeItem('shf1-script');loadScript();sendScript();$('sst').textContent='reset'};
+// mic
+async function mics(){try{const d=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind=='audioinput');
+ const v=$('mic').value;$('mic').innerHTML=d.map(x=>`<option value="${x.deviceId}">${esc(x.label||'microphone')}</option>`).join('');if(v)$('mic').value=v}catch(e){}}
+async function openMic(){if(stream)stream.getTracks().forEach(t=>t.stop());const c=$('clean').checked;
+ stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:$('mic').value?{exact:$('mic').value}:undefined,echoCancellation:c,noiseSuppression:c,autoGainControl:c,channelCount:1},
+  video:$('cam').checked?{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30},facingMode:'user'}:false});
+ $('camv').srcObject=$('cam').checked?stream:null;
+ mics();const ac=new AudioContext(),src=ac.createMediaStreamSource(stream);an=ac.createAnalyser();an.fftSize=1024;src.connect(an)}
+function meter(){if(an){const a=new Float32Array(an.fftSize);an.getFloatTimeDomainData(a);let m=0;for(const x of a)m=Math.max(m,Math.abs(x));
+ const i=$('meter').firstChild;i.style.width=Math.min(100,m*110)+'%';i.style.background=m>.95?'#e33':m>.6?'#cc4':'#4c4'}requestAnimationFrame(meter)}meter();
+$('mic').onchange=$('clean').onchange=()=>{if(stream)openMic()};
+async function startRec(){if(rec&&rec.state==='recording')return;stopPlay();
+ try{await openMic()}catch(e){alert('Microphone blocked: '+e.message);return}
+ const from=cur;go(from,false);
+ if($('count').checked){const cd=$('cd');cd.style.display='flex';for(const n of[3,2,1]){cd.textContent=n;await new Promise(r=>setTimeout(r,700))}cd.style.display='none'}
+ const vid=stream.getVideoTracks().length>0;
+ const mt=(vid?['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/mp4','video/webm']:['audio/webm;codecs=opus','audio/mp4','audio/webm']).find(m=>MediaRecorder.isTypeSupported(m));
+ rec=new MediaRecorder(stream,{mimeType:mt,audioBitsPerSecond:160000,...(vid?{videoBitsPerSecond:1200000}:{})});chunks=[];cues=[{t:0,line:from}];
+ rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ rec.onstop=()=>{const blob=new Blob(chunks,{type:rec.mimeType});addTake(blob,now(),cues.slice())};
+ t0=performance.now();rec.start(1000);$('rec').classList.add('on');$('rec').disabled=true;$('stop').disabled=false;
+ tick=setInterval(()=>$('clock').textContent=fmt(now()),100)}
+function stopRec(){if(!rec||rec.state!=='recording')return;rec.stop();clearInterval(tick);$('rec').classList.remove('on');$('rec').disabled=false;$('stop').disabled=true}
+$('rec').onclick=startRec;$('stop').onclick=stopRec;
+addEventListener('keydown',e=>{if(e.target.tagName=='TEXTAREA'||e.target.tagName=='INPUT')return;
+ if($('vbig').style.display=='flex'&&e.key=='Escape'){$('vbig').style.display='none';return}
+ if(e.key==' '||e.key=='ArrowRight'||e.key=='ArrowDown'){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'||e.key=='ArrowUp'){e.preventDefault();go(cur-1)}
+ else if(e.key=='r'||e.key=='R')startRec();else if(e.key=='s'||e.key=='S'||e.key=='Escape')stopRec()});
+// takes, kept in IndexedDB
+let db;const idb=new Promise(r=>{const q=indexedDB.open('shf-voice-1',1);q.onupgradeneeded=()=>q.result.createObjectStore('takes',{keyPath:'id'});q.onsuccess=()=>r(db=q.result)});
+const store=m=>db.transaction('takes',m).objectStore('takes');
+async function addTake(blob,dur,cues){await idb;const d=new Date(),p=n=>String(n).padStart(2,'0');
+ const id=`shf1-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+ const t={id,blob,dur,cues,script:LINES,when:d.toString(),note:'',up:false};store('readwrite').put(t).onsuccess=showTakes}
+async function showTakes(){await idb;const all=[];store('readonly').openCursor().onsuccess=e=>{const c=e.target.result;if(c){all.push(c.value);c.continue();return}
+ all.reverse();if(!all.length)return;$('takes').innerHTML='';
+ for(const t of all){const div=document.createElement('div');div.className='take';const url=URL.createObjectURL(t.blob);
+  div.innerHTML=`<b>${t.id.slice(7)}</b> <span class="small">${fmt(t.dur)} · ${(t.blob.size/1e6).toFixed(2)} MB · ${t.cues.length} cues</span>
+   ${t.blob.type.startsWith('video')?`<video controls playsinline src="${url}"></video>`:`<audio controls src="${url}"></audio>`}
+   <input placeholder="note (optional)" value="${esc(t.note||'')}"> <button class="up">⬆ Upload</button> <button class="del">✕</button>
+   <span class="st small">${t.up?'<span class=ok>uploaded ✓</span>':''}</span>`;
+  const au=div.querySelector('audio,video');au.onplay=()=>{stopPlay();playing={au,t};div.classList.add('sel');follow()};
+  au.onpause=au.onended=()=>div.classList.remove('sel');
+  div.querySelector('input').onchange=e=>{t.note=e.target.value;store('readwrite').put(t)};
+  div.querySelector('.del').onclick=()=>{if(confirm('Delete this take from the browser?'))store('readwrite').delete(t.id).onsuccess=()=>{div.remove()}};
+  div.querySelector('.up').onclick=()=>upload(t,div);$('takes').appendChild(div)}}}
+function stopPlay(){if(playing){playing.au.pause();playing=null}}
+function follow(){if(!playing||playing.au.paused)return;const s=playing.au.currentTime;let l=0;
+ for(const c of playing.t.cues)if(c.t<=s)l=c.line;if(l!==cur)go(l,false);requestAnimationFrame(follow)}
+async function upload(t,div){const st=div.querySelector('.st');st.textContent='uploading…';t.note=div.querySelector('input').value;
+ const ext=t.blob.type.includes('mp4')?(t.blob.type.startsWith('video')?'mp4':'m4a'):'webm';
+ try{let r=await fetch(`${API}/upload?k=${K}&id=${t.id}&ext=${ext}`,{method:'POST',body:t.blob});if(!r.ok)throw Error('upload '+r.status);
+  r=await fetch(`${API}/meta?k=${K}&id=${t.id}`,{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({id:t.id,when:t.when,duration:t.dur,mime:t.blob.type,note:t.note,cues:t.cues.map(c=>({...c,text:(t.script[c.line]||{}).text})),script:t.script})});
+  if(!r.ok)throw Error('meta '+r.status);t.up=true;store('readwrite').put(t);st.innerHTML='<span class=ok>uploaded ✓</span>';listServer()}
+ catch(e){st.innerHTML=`<span class=bad>failed (${esc(e.message)}): the take is still here, try again</span>`}}
+async function listServer(){try{let j=await (await fetch(`${API}/list?k=${K}`)).json();
+ j=j.filter(x=>x.id.startsWith('shf1-'));$('server').innerHTML=j.length?j.map(x=>`${esc(x.id)} · ${(x.bytes/1e6).toFixed(2)} MB${x.meta?` · ${fmt(x.meta.duration)}${x.meta.note?' · “'+esc(x.meta.note)+'”':''}`:''}`).join('<br>'):'nothing uploaded yet'}
+ catch(e){$('server').innerHTML='<span class=bad>server unreachable</span> (takes stay safe in this browser)'}}
+loadScript();showTakes();listServer();mics();addEventListener('resize',()=>go(cur,false));
+</script></body></html>

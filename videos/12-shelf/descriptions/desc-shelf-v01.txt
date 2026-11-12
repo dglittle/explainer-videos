@@ -1,0 +1,14 @@
+the human voice and face you see are real, and the idea, the "shelf" itself, and the direction are his: a shelf is a tiny way to keep copies of some JSON in sync. but.. the wording of the script (which he read), the animation, the code that draws every frame, and the timing of it all to the voice were made by an AI (Claude), working from his description.
+
+the idea: a shelf is just a pair, [value, version]. the value is your data (here: a little world with a lamp and a wall shelf). the version has the same shape, with a version number for every piece of the data, and [n, {…}] for every object.
+
+the edit: Alice clicks the teal swatch, which runs shelf_merge(shelf, {lamp: {color: "teal"}}), with just the part she changed. the shelf writes down "teal" and bumps that one version from 1 to 2 (versions are worked out for you), and returns just what changed, which is itself a shelf: [{lamp: {color: "teal"}}, [1, {lamp: [1, {color: 2}]}]].
+
+the merge: Bob runs shelf_merge(shelf, change). it compares versions from the top: same version, so look inside (twice), then for the color 2 beats 1, so the new color wins. now both sides match. (if two versions tie, the bigger value wins, so every copy picks the same one.)
+
+every value and version on screen comes from running the real shelf_merge, and is checked.
+
+the shelf code (MIT): https://github.com/dglittle/shelf
+how this video was made (the code, the full session log, all the tricks; MIT): https://github.com/dglittle/explainer-videos/tree/main/videos/12-shelf
+
+v0.1. still an attempt, to be improved upon.

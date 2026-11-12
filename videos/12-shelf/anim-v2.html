@@ -1,0 +1,326 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>shelf · animation prototype v0.1</title>
+<style>
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;max-width:1000px;margin:30px auto;padding:0 20px;color:#222}
+h1{margin:0}.sub{color:#777;margin:4px 0 18px}
+#box{background:#000;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px #0003}
+canvas{display:block;width:100%;aspect-ratio:16/9}
+#bar{display:flex;align-items:center;gap:12px;margin-top:10px}
+#play{width:84px;font-size:15px;padding:6px 0;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+#scrub{flex:1}
+#time{font:14px ui-monospace,Menlo,monospace;color:#555;width:120px;text-align:right}
+#cap{min-height:3.2em;margin:12px 0;font-size:19px;color:#333;font-style:italic}
+#chap button{font-size:13px;margin:0 6px 6px 0;padding:3px 9px;border:1px solid #ccc;border-radius:12px;background:#f7f7f7;cursor:pointer}
+#chap button.on{background:#ffe9a8;border-color:#d9b24a}
+.note{color:#666;font-size:14px;border-top:1px solid #eee;margin-top:22px;padding-top:10px}
+label{font-size:14px;color:#555}
+</style></head><body>
+<h1>shelf: one edit, synced</h1>
+<div class="sub">Prototype v0.1, no narration yet. Space = play/pause · ← → = 2 s back/forward · drag the scrubber. The italic lines under the video are DRAFT placeholder narration, only there to set the pace (about 2.5 words a second).</div>
+<div id="box"><canvas id="c" width="1920" height="1080"></canvas></div>
+<div id="bar"><button id="play">▶ Play</button><input id="scrub" type="range" min="0" max="100" step="0.02" value="0"><span id="time">0.0</span></div>
+<div id="cap"></div>
+<div id="chap"></div>
+<label><input type="checkbox" id="capon"> subtitles inside the box</label>
+<div class="note" id="note"></div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+// ==== ENGINE START (the voice booth copies everything from here to ENGINE END, verbatim) ====
+let g=typeof ctx!=="undefined"?ctx:null;   // the engine draws to g
+// Needs a 1920×1080 2-D canvas `cv` with context `g`. drawFrame(t) draws anim time t. Pure 2-D canvas.
+const W=1920, H=1080;
+// ---------- the shelf: shelf_merge copied verbatim from github.com/dglittle/shelf index.js (v0.2.4, commit c4b2f38) ----------
+function shelf_merge(shelf, incoming) {
+    if (!(incoming instanceof Array)) incoming = [incoming, null]
+    let [val, ver, change] = merge(shelf[0], shelf[1], incoming[0], incoming[1])
+    shelf[0] = val
+    shelf[1] = ver
+    return change
+
+    function is_obj(o) { return o && typeof o == 'object' && !Array.isArray(o) }
+    function ver_num(x) { return (x instanceof Array) ? x[0] : x }
+
+    function make_ver(val) {
+        let x = {}
+        for (let [k, v] of Object.entries(val))
+            x[k] = is_obj(v) ? [1, make_ver(v)] : 1
+        return x
+    }
+
+    function merge(a_val, a_ver, b_val, b_ver) {
+        if (b_ver == null) {
+            if (!is_obj(a_val) || !is_obj(b_val)) {
+                if (a_val === b_val || (a_val == null && b_val == null)) return [a_val, a_ver, null]
+                b_ver = (a_ver ? ver_num(a_ver) : 0) + 1
+                if (is_obj(b_val)) b_ver = [b_ver, make_ver(b_val)]
+                return [b_val, b_ver, [b_val, b_ver]]
+            }
+        } else {
+            let c = (a_ver != null) ? (ver_num(a_ver) - ver_num(b_ver)) : -1
+            if (c > 0) return [a_val, a_ver, null]
+            if (c < 0) return [b_val, b_ver, [b_val, b_ver]]
+        }
+
+        if (is_obj(a_val) && is_obj(b_val)) {
+            let change = null
+            for (let key of Object.keys(a_ver[1])) {
+                if ((!b_ver && b_val[key] !== undefined) || b_ver?.[1][key] != null) {
+                    let [val, ver, c] = merge(a_val[key], a_ver[1][key], b_val[key], b_ver?.[1][key])
+
+                    if (val != null) a_val[key] = val
+                    else delete a_val[key]
+
+                    a_ver[1][key] = ver
+                    if (c) {
+                        if (!change) change = [{}, [ver_num(a_ver), {}]]
+                        change[0][key] = c[0]
+                        change[1][1][key] = c[1]
+                    }
+                }
+            }
+            for (let key of Object.keys(b_val)) {
+                if (a_ver[1][key] == null) {
+                    let [val, ver, c] = merge(null, null, b_val[key], b_ver?.[1][key])
+
+                    if (val != null) a_val[key] = val
+                    else delete a_val[key]
+
+                    if (ver != null) a_ver[1][key] = ver
+
+                    if (c) {
+                        if (!change) change = [{}, [ver_num(a_ver), {}]]
+                        change[0][key] = c[0]
+                        change[1][1][key] = c[1]
+                    }
+                }
+            }
+            return [a_val, a_ver, change]
+        } else if (a_val === undefined && b_val === undefined) {
+            return [a_val, a_ver, null]
+        } else if (JSON.stringify(a_val) >= JSON.stringify(b_val)) {
+            return [a_val, a_ver, null]
+        } else {
+            return [b_val, b_ver, [b_val, b_ver]]
+        }
+    }
+}
+// ---------- the story, computed by running the real shelf_merge ----------
+const clone=x=>JSON.parse(JSON.stringify(x));
+const isObj=o=>o&&typeof o=='object'&&!Array.isArray(o), vn=x=>Array.isArray(x)?x[0]:x;
+const COLS={gold:'#ffd166',teal:'#2ec4b6',pink:'#ff6b9a'}, SWATCH=['gold','teal','pink'];
+const INIT={lamp:{on:true,color:'gold'},shelf:{books:3}};   // the little world, as JSON (yes: a shelf on the shelf)
+const EDIT={lamp:{color:'teal'}};                                // what I do on the left: click the teal swatch
+const SA=[null,null];shelf_merge(SA,clone(INIT));const A0=clone(SA);       // left shelf (versions inferred: all 1)
+const SB=[null,null];shelf_merge(SB,clone(A0));const B0=clone(SB);         // right shelf: a synced copy
+const CH=clone(shelf_merge(SA,clone(EDIT)));const A1=clone(SA);           // the local edit → the change it returns
+// walk the change against the right shelf, top down, the way merge does: compare versions; equal objects → look inside
+function compareWalk(val,ver,cval,cver,path,out){const a=vn(ver),b=vn(cver);
+ if(b==a&&isObj(val)&&isObj(cval)){out.push({path,a,b,r:'='});for(const k of Object.keys(cver[1]))compareWalk(val[k],ver[1][k],cval[k],cver[1][k],path.concat(k),out)}
+ else out.push({path,a,b,r:b>a?'win':b<a?'lose':'tie',leaf:!isObj(cval)});return out}
+const WALK=compareWalk(B0[0],B0[1],CH[0],CH[1],[],[]);
+const CHB=shelf_merge(SB,clone(CH));const B1=clone(SB);                    // the right side merges it
+const ECHO=shelf_merge(clone(A1),clone(CH));                               // sending it back to the left: nothing to do
+// the shelf drawn as rows: { , key: { , key: value , } — each row with its version
+function treeRows(val,ver){const R=[];(function w(key,v,vr,ind,path){if(isObj(v)){R.push({kind:'open',key,ind,ver:vn(vr),path});for(const k of Object.keys(v))w(k,v[k],vr[1][k],ind+1,path.concat(k));R.push({kind:'close',ind,path})}
+ else R.push({kind:'leaf',key,ind,val:v,ver:vr,path})})(null,val,ver,0,[]);return R}
+const keyTxt=r=>r.kind=='close'||r.key==null?'':r.key+': ', restTxt=r=>r.kind=='close'?'}':r.kind=='open'?'{':JSON.stringify(r.val);
+const pkey=r=>(r.kind=='leaf'?'L:':'O:')+r.path.join('.');
+const RA0=treeRows(...A0),RA1=treeRows(...A1),RB0=treeRows(...B0),RB1=treeRows(...B1);
+const RI={};RA0.forEach((r,i)=>{if(r.kind!='close')RI[pkey(r)]=i});
+const ER=treeRows(...CH).filter(r=>r.kind!='close').map(r=>({...r,i:RI[pkey(r)]}));   // the change's rows, each at its row in the shelf
+const STEP_ROW=WALK.map(s=>RI[(s.leaf?'L:':'O:')+s.path.join('.')]);
+const EDIT_ROW=RA0.findIndex((r,i)=>restTxt(r)!=restTxt(RA1[i]));
+// ---------- screenplay: [key phrase, text, extra wordless seconds after the line] ----------
+// PLACEHOLDER lines, only to set the pace (no narration yet); Greg writes the real ones
+const SCRIPT=[
+['two copies',"Here are two copies of the same little world. Under each one is its shelf: the world's data, with a version number on every piece.",1.0],
+['keep them in sync',"We want to keep them in sync.",0.8],
+['change the lamp',"So I change the lamp's color, on the left. In code, that's one call to shelf_merge, with just the part I changed.",1.0],
+['from 1 to 2',"The shelf writes down the new color, and bumps its version, from 1 to 2.",1.0],
+['just what changed',"Then it packs up just what changed: the new color with its version, plus the path to get there.",1.0],
+['other side',"That little package goes over to the other side.",0.6],
+['from the top',"There, the same call merges it in. It compares versions, from the top. Same version? Look inside.",1.0],
+['2 beats 1',"For the color, 2 beats 1, so the new color wins.",1.4],
+['both sides match',"And now both sides match.",1.2]];
+const GAP=0.45, S=[], E=[]; let T=1.2;
+SCRIPT.forEach(([k,txt,h])=>{const d=Math.max(1.6,txt.split(/\s+/).length/2.5+0.3);S.push(T);E.push(T+d);T+=d+GAP+h});
+const LK=k=>{const i=SCRIPT.findIndex(s=>s[0]==k);if(i<0)throw Error('no line '+k);return i};
+// ---------- helpers ----------
+let tt=0;
+const cl=x=>x<0?0:x>1?1:x, ease=x=>{x=cl(x);return x*x*(3-2*x)}, eo=x=>{x=cl(x);return 1-(1-x)*(1-x)*(1-x)}, lerp=(a,b,u)=>a+(b-a)*u;
+const ev=(i,f,d=0.6)=>ease((tt-(S[i]+f*(E[i]-S[i])))/d);
+const after=(i,f,d=0.6)=>ease((tt-E[i]-f)/d);
+const at=(i,f)=>S[i]+f*(E[i]-S[i]);
+const bump=(t0,d=0.6)=>{const u=(tt-t0)/d;return u>0&&u<1?Math.sin(Math.PI*u):0};
+const FONT='"Helvetica Neue",Helvetica,"Liberation Sans",Arial,sans-serif', MONO='Menlo,"DejaVu Sans Mono","Liberation Mono",monospace';
+const C={txt:'#e8eef4',dim:'#7d8b99',panel:'#16212d',gold:'#ffd166',a:'#4da3ff',b:'#ff9f43',ok:'#3ecf6e',ink:'#08121c',key:'#8ab8e6'};
+function txt(s,x,y,sz,col=C.txt,al='center',wt='',a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${FONT}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+function mtxt(s,x,y,sz,col=C.txt,a=1,al='left',wt=''){if(a<=0)return;g.save();g.globalAlpha*=a;g.font=`${wt} ${sz}px ${MONO}`;g.fillStyle=col;g.textAlign=al;g.textBaseline='middle';g.fillText(s,x,y);g.restore()}
+const MWC={}, mw=(s,sz)=>{const k=sz+'|'+s;if(k in MWC)return MWC[k];g.save();g.font=`${sz}px ${MONO}`;const w=g.measureText(s).width;g.restore();return MWC[k]=w};
+function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+function mix(c1,c2,k){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+')'}
+function hexA(c,a){const p=[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));return`rgba(${p.join(',')},${a})`}
+function mixA(c1,c2,k,a){const p=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),A=p(c1),B=p(c2);return'rgba('+A.map((v,i)=>Math.round(v+(B[i]-v)*k)).join(',')+','+a+')'}
+function glowDot(x,y,r,col,a=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.shadowColor=col;g.shadowBlur=r*1.5;g.beginPath();g.arc(x,y,r,0,7);g.fillStyle=col;g.fill();g.restore()}
+// a comet: a glowing dot that flies from p to q over [t0, t0+d], with a short tail
+function comet(p,q,t0,d,col){const u=(tt-t0)/d;if(u<0||u>1.25)return;const f=1-cl((u-1)/0.25);
+ for(let k=0;k<10;k++){const v=eo(cl(u-k*0.025));glowDot(lerp(p[0],q[0],v),lerp(p[1],q[1],v),7-k*0.5,col,f*(1-k/10))}}
+const FACE=[1650,815,1920,1080];                                      // the webcam circle's corner: always kept free
+// ---------- the stage ----------
+const PA={x:120,y:100,w:520,h:340}, PB={x:1280,y:100,w:520,h:340};   // the two little worlds
+const SHY=462, SHH=338, FS=25, RY=i=>510+i*33;                        // the two shelves, one row per line
+const SIDE={A:{P:PA,chip:600,tx:d=>150+d*30,hx:136},B:{P:PB,chip:1322,tx:d=>1372+d*30,hx:1296}};   // version chips face the middle
+const ENVW=300, EXA=664, EXB=954, EFS=22, SYMX=1277;                  // the change package: built on the left, parked by the right shelf
+const lampX=P=>P.x+150, swXY=(P,i)=>[lampX(P)+(i-1)*46,P.y+312];
+// a version chip; n0 → n1 cross-fade by k
+function chip(x,y,n0,n1,k,a,ring=0,pop=0){if(a<=0)return;const w=40,h=28;g.save();g.globalAlpha*=a;rr(x-w/2,y-h/2,w,h,7);g.fillStyle=mix(C.panel,C.gold,0.16+0.45*ring);g.fill();
+ if(ring>0){g.shadowColor=C.gold;g.shadowBlur=22*ring}g.strokeStyle=mix('#6b5a2a',C.gold,0.4+0.6*ring);g.lineWidth=2;g.stroke();g.restore();
+ g.save();g.translate(x,y);const sc=1+0.4*pop;g.scale(sc,sc);if(k<1)mtxt(''+n0,0,1,19,C.gold,a*(1-k),'center','bold');if(k>0)mtxt(''+n1,0,1,19,'#fff',a*k,'center','bold');g.restore()}
+// one shelf row: key in blue, value in white, a color dot after color values
+function row(r,x,y,sz,a,col=C.txt){if(a<=0)return;const k=keyTxt(r),v=restTxt(r);mtxt(k,x,y,sz,C.key,a);mtxt(v,x+mw(k,sz),y,sz,col,a);
+ if(r.kind=='leaf'&&COLS[r.val]){const dx=x+mw(k+v,sz)+sz*0.55;g.save();g.globalAlpha*=a;g.beginPath();g.arc(dx,y,sz*0.28,0,7);g.fillStyle=COLS[r.val];g.fill();g.restore()}}
+// a whole shelf: rows R0 → R1 (values change at tv, versions at tvr)
+function shelf(side,R0,R1,tv,tvr,a,hl=()=>0,ring=()=>0){if(a<=0)return;const s=SIDE[side];
+ R0.forEach((r0,i)=>{const r1=R1[i],y=RY(i),x=s.tx(r0.ind),h=hl(i);
+  if(h>0){g.save();g.globalAlpha*=a*h;rr(s.hx,y-16,490,32,8);g.fillStyle='#ffffff14';g.fill();g.restore()}
+  const kv=restTxt(r0)!=restTxt(r1)?ease((tt-tv)/0.45):0;
+  if(kv<1)row(r0,x,y,FS,a*(1-kv));if(kv>0)row(r1,x,y,FS,a*kv,'#fff');
+  if(r0.kind!='close'){const ch=r0.ver!=r1.ver;chip(s.chip,y,r0.ver,r1.ver,ch?ease((tt-tvr)/0.3):0,a,ring(i),ch?bump(tvr,0.7):0)}})}
+// the little world: a lamp (with its color swatches) and a wall shelf with books
+function world(P,label,col,sel,a,flash=0){if(a<=0)return;g.save();g.globalAlpha*=a;
+ rr(P.x,P.y,P.w,P.h,18);g.fillStyle='#0f1923';g.fill();g.strokeStyle='#2a3a4a';g.lineWidth=2;g.stroke();g.restore();
+ txt(label,P.x+20,P.y+26,20,C.dim,'left','bold',a);
+ const lx=lampX(P),ty=P.y+118,by=P.y+185;
+ g.save();g.globalAlpha*=a;g.beginPath();g.rect(P.x+2,P.y+2,P.w-4,P.h-4);g.clip();
+ const gl=g.createRadialGradient(lx,by+10,8,lx,by+30,190);gl.addColorStop(0,col.replace('rgb','rgba').replace(')',`,${0.5+0.3*flash})`));gl.addColorStop(1,col.replace('rgb','rgba').replace(')',',0)'));
+ g.fillStyle=gl;g.beginPath();g.moveTo(lx-80,by);g.lineTo(lx+80,by);g.lineTo(lx+190,P.y+P.h);g.lineTo(lx-190,P.y+P.h);g.closePath();g.fill();g.restore();
+ g.save();g.globalAlpha*=a;g.fillStyle='#55626f';g.fillRect(lx-4,by,8,80);g.beginPath();g.ellipse(lx,by+84,52,10,0,0,7);g.fill();
+ g.shadowColor=col;g.shadowBlur=30+30*flash;g.fillStyle=col;g.beginPath();g.moveTo(lx-34,ty);g.lineTo(lx+34,ty);g.lineTo(lx+76,by);g.lineTo(lx-76,by);g.closePath();g.fill();
+ g.shadowBlur=0;g.fillStyle='#fff8e0';g.beginPath();g.arc(lx,by+4,9,0,7);g.fill();g.restore();
+ SWATCH.forEach((n,i)=>{const[x,y]=swXY(P,i);g.save();g.globalAlpha*=a;g.beginPath();g.arc(x,y,13,0,7);g.fillStyle=COLS[n];g.fill();
+  if(n==sel){g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(x,y,19,0,7);g.stroke()}g.restore()});
+ const sx=P.x+385,py=P.y+240,BK=['#c8553d','#4f81bd','#9bbb59','#8064a2','#f2a541'],BH=[96,112,84,104,90];g.save();g.globalAlpha*=a;
+ g.fillStyle='#5a3a26';for(const bx of[sx-80,sx+80]){g.beginPath();g.moveTo(bx-5,py+16);g.lineTo(bx+5,py+16);g.lineTo(bx+5,py+58);g.closePath();g.fill()}   // brackets
+ const n=INIT.shelf.books,bw=28,x0=sx-108;
+ for(let i=0;i<n;i++){const h=BH[i%5],x=x0+i*(bw+4);rr(x,py-h,bw,h,4);g.fillStyle=BK[i%5];g.fill();g.fillStyle='#ffffff40';g.fillRect(x+5,py-h+14,bw-10,4);g.fillRect(x+5,py-24,bw-10,4)}
+ const vx=sx+62;g.fillStyle='#b5654a';g.beginPath();g.moveTo(vx-24,py-46);g.lineTo(vx+24,py-46);g.lineTo(vx+18,py);g.lineTo(vx-18,py);g.closePath();g.fill();   // a little plant
+ g.fillStyle='#5cb85c';for(const[dx,dy,r]of[[-14,-62,15],[12,-66,16],[0,-82,17],[-2,-56,13]]){g.beginPath();g.arc(vx+dx,py+dy,r,0,7);g.fill()}
+ rr(sx-125,py,250,16,4);g.fillStyle='#9a6a44';g.fill();g.fillStyle='#ffffff22';g.fillRect(sx-121,py+2,242,3);g.restore()}
+// the mouse pointer (tip at x, y)
+function pointer(x,y,a,sc=1){if(a<=0)return;g.save();g.globalAlpha*=a;g.translate(x,y);g.scale(sc*1.3,sc*1.3);g.beginPath();g.moveTo(0,0);g.lineTo(0,30);g.lineTo(8,23);g.lineTo(13,34);g.lineTo(18,32);g.lineTo(13,21);g.lineTo(23,21);g.closePath();
+ g.fillStyle='#fff';g.shadowColor='#000';g.shadowBlur=8;g.fill();g.shadowBlur=0;g.strokeStyle='#111';g.lineWidth=1.5;g.stroke();g.restore()}
+// ---------- the timeline (all derived from the lines) ----------
+const L0=LK('two copies'),L1=LK('keep them in sync'),L2=LK('change the lamp'),L3=LK('from 1 to 2'),L4=LK('just what changed'),L5=LK('other side'),L6=LK('from the top'),L7=LK('2 beats 1'),L8=LK('both sides match');
+const T_CLICK=at(L2,0.25), T_CODEA=at(L2,0.5), T_RET=at(L4,0.12), T_CODEB=at(L6,0.02), T_AVAL=at(L3,0.22), T_AVER=at(L3,0.62);
+const T_ROW=j=>at(L4,0.32)+j*0.28, T_BOX=at(L4,0.32)+ER.length*0.28+0.3;
+const T_GO=at(L5,0.15), T_ARR=E[L5]+0.25;
+const NEQ=WALK.filter(s=>s.r=='=').length;
+const T_STEP=WALK.map((s,i)=>i<NEQ?at(L6,0.42+i*0.55/Math.max(1,NEQ)):at(L7,0.22+(i-NEQ)*0.3));
+const WIN=WALK.findIndex(s=>s.r=='win'), T_BVAL=T_STEP[WIN]+0.7, T_BVER=T_STEP[WIN]+0.9, T_BLAMP=T_STEP[WIN]+1.75;
+function scMain(){
+ const aIn=ev(L0,0,0.8), aSh=ev(L0,0.35,0.7), out8=1-ev(L8,0,0.6);
+ // the pipe between the two sides
+ const aP=ev(L1,0.15,0.6);if(aP>0){g.save();g.globalAlpha*=aP*0.5;g.setLineDash([10,10]);g.strokeStyle=C.dim;g.lineWidth=2;
+  for(const y of[RY(0)-34,RY(3)+34]){g.beginPath();g.moveTo(SIDE.A.P.x+PA.w,y);g.lineTo(PB.x,y);g.stroke()}g.restore()}
+ // the worlds
+ const kA=ease((tt-T_CLICK-0.05)/0.35), kB=ease((tt-T_BLAMP)/0.4);
+ const cA=mix(COLS[A0[0].lamp.color],COLS[A1[0].lamp.color],kA), cB=mix(COLS[B0[0].lamp.color],COLS[B1[0].lamp.color],kB);
+ world(PA,'copy A',cA,kA<0.5?A0[0].lamp.color:A1[0].lamp.color,aIn,bump(T_CLICK,0.8));
+ world(PB,'copy B',cB,kB<0.5?B0[0].lamp.color:B1[0].lamp.color,aIn,bump(T_BLAMP,0.8));
+ // the shelf panels (green when in sync at the end)
+ const k8=ev(L8,0.15,0.6);
+ for(const P of[PA,PB]){g.save();g.globalAlpha*=aSh;rr(P.x,SHY,P.w,SHH,18);g.fillStyle='#0c141c';g.fill();g.strokeStyle=mix('#2a3a4a',C.ok,k8);g.lineWidth=2+2*k8;if(k8>0){g.shadowColor=C.ok;g.shadowBlur=20*k8}g.stroke();g.restore();
+  txt('shelf',P==PA?P.x+P.w-80:P.x+P.w-20,SHY+22,18,C.dim,'right','bold',aSh)}
+ const chipsLit=bump(at(L0,0.72),1.4);
+ // left shelf: the edit; the rows on the change's path glow while it's packed
+ const onPath=new Set(ER.map(r=>r.i)), pk=ev(L4,0.1,0.4)*(1-ease((tt-T_GO)/0.5));
+ shelf('A',RA0,RA1,T_AVAL,T_AVER,aSh,i=>Math.max(onPath.has(i)?pk:0,i==EDIT_ROW?bump(T_AVAL-0.1,1.2):0),()=>chipsLit);
+ // right shelf: the compare walk, then the take
+ const ringB=i=>{let m=chipsLit;WALK.forEach((s,j)=>{if(STEP_ROW[j]!=i)return;const on=ease((tt-T_STEP[j])/0.25),off=s.r=='='?ease((tt-T_STEP[j]-1.3)/0.3):1-out8;m=Math.max(m,on*(1-off))});return m};
+ shelf('B',RB0,RB1,T_BVAL,T_BVER,aSh,i=>i==STEP_ROW[WIN]?bump(T_BVAL-0.1,1.4):0,ringB);
+ // the click
+ const [sx,sy]=swXY(PA,SWATCH.indexOf(A1[0].lamp.color)), t0=at(L2,0.12), pA=ev(L2,0.05,0.4)*(1-ev(L3,0.35,0.5));
+ const u=eo((tt-t0)/(T_CLICK-t0-0.08)), px=lerp(PA.x+470,sx+2,u), py=lerp(PA.y+300,sy+2,u);
+ const rp=(tt-T_CLICK)/0.55;if(rp>0&&rp<1){g.save();g.globalAlpha*=1-rp;g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(sx,sy,14+30*rp,0,7);g.stroke();g.restore()}
+ pointer(px,py,pA,1-0.12*bump(T_CLICK-0.08,0.25));
+ // world → shelf on the left; shelf → world on the right
+ comet(CODE_TEAL(),[SIDE.A.tx(RA0[EDIT_ROW].ind)+mw(keyTxt(RA0[EDIT_ROW]),FS)+30,RY(EDIT_ROW)],T_AVAL-0.55,0.55,COLS[A1[0].lamp.color]);
+ const wr=RA1[STEP_ROW[WIN]];comet([SIDE.B.tx(wr.ind)+mw(keyTxt(wr),FS)+30,RY(STEP_ROW[WIN])],[lampX(PB),PB.y+170],T_BLAMP-0.6,0.6,COLS[B1[0].lamp.color]);
+ // "+1" on the bumped version
+ const pb=(tt-T_AVER)/1.0;if(pb>0&&pb<1)txt('+1',SIDE.A.chip+34,RY(EDIT_ROW)-10-26*pb,22,C.gold,'left','bold',1-pb);
+ // the change: rows fly out of the left shelf into a package, which travels to the right shelf
+ const go=ease((tt-T_GO)/(T_ARR-T_GO)), EX=lerp(EXA,EXB,go), aE=out8;
+ const yTop=RY(Math.min(...ER.map(r=>r.i)))-24, yBot=RY(Math.max(...ER.map(r=>r.i)))+24, bk=ease((tt-T_BOX)/0.5);
+ if(bk>0&&aE>0){g.save();g.globalAlpha*=bk*aE;rr(EX,yTop,ENVW,yBot-yTop,14);g.fillStyle='#1b2a3a';g.fill();g.strokeStyle=C.a;g.lineWidth=2.5;g.shadowColor=C.a;g.shadowBlur=16;g.stroke();g.restore();
+  txt('the change',EX+ENVW/2,yTop-22,20,C.a,'center','bold',bk*aE)}
+ ER.forEach((r,j)=>{const k=eo((tt-T_ROW(j))/0.6);if(k<=0||aE<=0)return;const y=RY(r.i);
+  row(r,lerp(SIDE.A.tx(r.ind),EX+16+r.ind*22,k),y,lerp(FS,EFS,k),aE*Math.min(1,k*3));
+  chip(lerp(SIDE.A.chip,EX+ENVW-24,k),y,r.ver,r.ver,0,aE*Math.min(1,k*3),ringB(r.i)*(go>0.99?1:0))});
+ // the compare walk: a sign between the package's version and the shelf's, and a note under the package
+ WALK.forEach((s,j)=>{const k=ease((tt-T_STEP[j])/0.3);if(k<=0)return;const y=RY(STEP_ROW[j]),a=k*out8,win=s.r=='win';
+  txt(win?'>':s.r=='='?'=':s.r=='lose'?'<':'=',SYMX,y,28,win?C.ok:C.gold,'center','bold',a);
+  const note=s.r=='='?`${s.b} = ${s.a}: same, so look inside`:s.r=='win'?`${s.b} > ${s.a}: the new one wins`:s.r=='lose'?`${s.b} < ${s.a}: keep ours`:`${s.b} = ${s.a}: bigger value wins`;
+  txt(note,EXB+ENVW/2,yBot+40+j*36,22,win?C.ok:C.txt,'center',win?'bold':'',a)});
+ // the end
+ codeStrip();
+ txt('✓ in sync',(PA.x+PA.w+PB.x)/2,(RY(0)+RY(3))/2+10,44,C.ok,'center','bold',k8)}
+// ---------- the code strip (bottom band): the same one function makes the edit and merges it ----------
+const jsLit=o=>JSON.stringify(o).replace(/"(\w+)":/g,'$1: ').replace(/,/g,', ');   // {lamp: {color: "teal"}}
+const CODE_Y=880, CFS=26, CAX=PA.x, CBX=PB.x-40;
+const CODE_A=[['shelf_merge',C.gold],['(shelf, ',C.txt],[jsLit(EDIT),C.key],[')',C.txt]], CODE_B=[['shelf_merge',C.gold],['(shelf, ',C.txt],['change',C.a],[')',C.txt]];
+function code(segs,x,y,u,a){if(a<=0||u<=0)return;const n=segs.reduce((m,s)=>m+s[0].length,0);let left=Math.round(n*cl(u)),X=x;
+ for(const[t,c]of segs){if(left<=0)break;const p=t.slice(0,left);mtxt(p,X,y,CFS,c,a);X+=mw(p,CFS);left-=p.length}
+ if(u<1&&Math.floor(tt*3)%2==0){g.save();g.globalAlpha*=a;g.fillStyle=C.txt;g.fillRect(X+2,y-CFS*0.6,3,CFS*1.2);g.restore()}return X}
+const codeW=segs=>mw(segs.map(s=>s[0]).join(''),CFS);
+function CODE_TEAL(){const pre=CODE_A[0][0]+CODE_A[1][0],lit=CODE_A[2][0],v=JSON.stringify(A1[0].lamp.color),i=lit.indexOf(v);return[CAX+mw(pre+lit.slice(0,i),CFS)+mw(v,CFS)/2,CODE_Y-18]}
+function codeStrip(){const a=1;
+ const ka=ease((tt-T_CODEA)/0.3);if(ka>0){const X=code(CODE_A,CAX,CODE_Y,(tt-T_CODEA)/1.3,ka);
+  const r=ease((tt-T_RET)/0.4);if(r>0){const x2=CAX+codeW(CODE_A);mtxt(' → ',x2,CODE_Y,CFS,C.dim,r);mtxt('change',x2+mw(' → ',CFS),CODE_Y,CFS,C.a,r,'left','bold')}
+  txt('on the left, the click runs:',CAX,CODE_Y-44,18,C.dim,'left','',ka)}
+ const kb=ease((tt-T_CODEB)/0.3);if(kb>0){code(CODE_B,CBX,CODE_Y,(tt-T_CODEB)/0.9,kb);txt('on the right, when the change arrives:',CBX,CODE_Y-44,18,C.dim,'left','',kb)}}
+function scIntro(){const a=ev(L0,0,0.7)*(1-ev(L1,0.3,0.6));txt('syncing with a shelf',W/2,52,40,C.txt,'center','bold',a)}
+function drawFrame(t){tt=t;
+ g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;const grd=g.createRadialGradient(W/2,H*0.45,200,W/2,H/2,1200);grd.addColorStop(0,'#131f2c');grd.addColorStop(1,'#070c12');g.fillStyle=grd;g.fillRect(0,0,W,H);
+ scIntro();scMain();
+ return cv}
+const VK=SCRIPT.map(([k],i)=>[k,[S[i]+0.15,(S[i]+E[i])/2,E[i]+Math.min(0.3,SCRIPT[i][2])]]);
+// ==== ENGINE END ====
+const SCENES=[['two copies',0],['sync',1],['the edit',2],['version bump',3],['the change',4],['across',5],['compare',6],['2 beats 1',7],['in sync',8]];
+const CAP=SCRIPT.map(([k,s],i)=>[S[i]-0.2,E[i]+0.2,s]);
+const J=JSON.stringify;
+const CHK={
+ synced:J(A1)==J(B1),
+ change:J(CH)==J([{lamp:{color:'teal'}},[1,{lamp:[1,{color:2}]}]]),
+ rightReturns:J(CHB)==J(CH),
+ echoNull:ECHO===null,
+ startEqual:J(A0)==J(B0),
+ allOnes:RA0.every(r=>r.kind=='close'||r.ver===1),
+ oneRowChanged:RA0.filter((r,i)=>J(r)!=J(RA1[i])).length==1,
+ sameShape:RA0.length==RA1.length&&RB0.length==RB1.length&&RA0.every((r,i)=>pkey(r)==pkey(RA1[i])),
+ walk:J(WALK.map(s=>s.r))==J(['=','=','win']),
+ rowsFound:ER.every(r=>r.i!=null)&&STEP_ROW.every(i=>i!=null)};
+const BAD=Object.entries(CHK).filter(([k,v])=>!v).map(([k])=>k);
+if(BAD.length)console.error('check failed: '+BAD.join(', '));
+document.getElementById('note').innerHTML=`prototype v0.1. ${SCRIPT.length} placeholder lines, ${T.toFixed(0)} s at the guessed pace. Everything on screen comes from running the real <code>shelf_merge</code> (copied from github.com/dglittle/shelf v0.2.4). Checks: the edit's change is <code>${J(CH)}</code> <b>${CHK.change}</b>; after the merge both shelves are identical <b>${CHK.synced}</b>; the compare walk is ${WALK.map(s=>s.r).join(', ')} <b>${CHK.walk}</b>; sending the change back to the left changes nothing <b>${CHK.echoNull}</b>; only one row changed <b>${CHK.oneRowChanged}</b>.`;
+let capOn=false;
+function caption(t){const c=CAP.find(c=>t>=c[0]&&t<c[1]);return c?c[2]:''}
+function render(t){drawFrame(t);const s=caption(t);
+ if(capOn&&s){ctx.save();ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000c';const w=Math.min(1800,ctx.measureText(s).width);ctx.fillRect(W/2-w/2-24,H-84,w+48,62);ctx.fillStyle='#fff';ctx.fillText(s,W/2,H-42,1800);ctx.restore()}
+ capEl.textContent=s;timeEl.textContent=t.toFixed(1)+' / '+T.toFixed(1);scrub.value=t;
+ let ci=0;SCENES.forEach((c,i)=>{if(t>=S[c[1]]-GAP)ci=i});chapBtns.forEach((b,i)=>b.classList.toggle('on',i===ci))}
+const capEl=document.getElementById('cap'),timeEl=document.getElementById('time'),scrub=document.getElementById('scrub'),playB=document.getElementById('play');
+scrub.max=T;
+const chapBtns=SCENES.map(([n,l])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{t=Math.max(0,S[l]-0.3);render(t)};document.getElementById('chap').appendChild(b);return b});
+let t=0,playing=false,last=0;
+function frame(now){if(!playing)return;t+=(now-last)/1000;last=now;if(t>=T){t=T;setPlay(false)}render(t);if(playing)requestAnimationFrame(frame)}
+function setPlay(p){playing=p;playB.textContent=p?'❚❚ Pause':'▶ Play';if(p){if(t>=T)t=0;last=performance.now();requestAnimationFrame(frame)}}
+playB.onclick=()=>setPlay(!playing);
+scrub.oninput=()=>{t=+scrub.value;render(t)};
+document.getElementById('capon').onchange=e=>{capOn=e.target.checked;render(t)};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setPlay(!playing)}
+ if(e.code==='ArrowRight'){t=Math.min(T,t+2);render(t)}if(e.code==='ArrowLeft'){t=Math.max(0,t-2);render(t)}});
+const hm=location.hash.match(/t=([\d.]+)/);if(hm)t=+hm[1];
+render(t);
+</script>
+</body></html>
